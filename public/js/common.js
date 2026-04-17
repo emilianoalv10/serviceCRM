@@ -44,6 +44,7 @@ function renderNav(active) {
         <div class="collapse navbar-collapse" id="nav">
           <ul class="navbar-nav me-auto">
             <li class="nav-item"><a class="nav-link ${active==='dashboard'?'active':''}" href="/">Dashboard</a></li>
+            <li class="nav-item"><a class="nav-link ${active==='agenda'?'active':''}" href="/agenda.html">Agenda</a></li>
             <li class="nav-item"><a class="nav-link ${active==='clients'?'active':''}" href="/clients.html">Clientes</a></li>
             <li class="nav-item"><a class="nav-link ${active==='services'?'active':''}" href="/services.html">Servicios</a></li>
           </ul>

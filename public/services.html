@@ -38,6 +38,7 @@
           <thead class="table-light">
             <tr>
               <th>Fecha</th>
+              <th>Hora</th>
               <th>Cliente</th>
               <th>Rubro</th>
               <th>Descripción</th>
@@ -49,7 +50,7 @@
           <tbody id="services-body"></tbody>
           <tfoot class="table-light">
             <tr>
-              <th colspan="4" class="text-end">Totales:</th>
+              <th colspan="5" class="text-end">Totales:</th>
               <th class="text-end money" id="totalFiltered">$0</th>
               <th colspan="2" class="small text-muted" id="totalBreakdown"></th>
             </tr>
@@ -64,7 +65,7 @@
       <div class="modal-content">
         <form id="svcForm">
           <div class="modal-header">
-            <h5 class="modal-title" id="modalTitle">Nuevo servicio</h5>
+            <h5 class="modal-title" id="svcModalTitle">Nuevo servicio</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
@@ -77,10 +78,17 @@
               <label class="form-label">Rubro *</label>
               <select class="form-select" name="category" required id="categorySelect"></select>
             </div>
-            <div class="mb-2">
-              <label class="form-label">Fecha *</label>
-              <input class="form-control" type="date" name="service_date" required />
+            <div class="row g-2 mb-2">
+              <div class="col-7">
+                <label class="form-label">Fecha *</label>
+                <input class="form-control" type="date" name="service_date" required />
+              </div>
+              <div class="col-5">
+                <label class="form-label">Hora</label>
+                <input class="form-control" type="time" name="service_time" />
+              </div>
             </div>
+            <div id="daySchedule" class="mb-2"></div>
             <div class="mb-2">
               <label class="form-label">Descripción</label>
               <textarea class="form-control" name="description" rows="2"></textarea>
@@ -105,33 +113,22 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/js/common.js"></script>
+  <script src="/js/service-form.js"></script>
   <script>
     renderNav('services');
 
-    const modal = new bootstrap.Modal(document.getElementById('svcModal'));
-    const form = document.getElementById('svcForm');
-    let categories = [];
-    let clients = [];
-
     async function init() {
-      [categories, clients] = await Promise.all([
-        api('/api/services/categories'),
-        api('/api/clients')
-      ]);
-      const catSel = document.getElementById('categorySelect');
-      const fCat = document.getElementById('f-category');
-      catSel.innerHTML = categories.map(c => `<option value="${c}">${c}</option>`).join('');
-      fCat.innerHTML = '<option value="">Todos los rubros</option>' + categories.map(c => `<option value="${c}">${c}</option>`).join('');
-      document.getElementById('clientSelect').innerHTML =
-        '<option value="">— Seleccionar —</option>' +
-        clients.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+      const categories = await api('/api/services/categories');
+      document.getElementById('f-category').innerHTML =
+        '<option value="">Todos los rubros</option>' +
+        categories.map(c => `<option value="${c}">${c}</option>`).join('');
+
+      await ServiceForm.init({ onSaved: load });
 
       const params = new URLSearchParams(window.location.search);
       if (params.get('client_id')) {
-        openNew();
-        document.getElementById('clientSelect').value = params.get('client_id');
+        ServiceForm.openNew({ clientId: params.get('client_id') });
       }
-
       load();
     }
 
@@ -150,7 +147,7 @@
       const rows = await api('/api/services' + (qs ? '?' + qs : ''));
       const body = document.getElementById('services-body');
       if (!rows.length) {
-        body.innerHTML = '<tr><td colspan="7" class="text-muted text-center p-4">Sin servicios.</td></tr>';
+        body.innerHTML = '<tr><td colspan="8" class="text-muted text-center p-4">Sin servicios.</td></tr>';
         document.getElementById('totalFiltered').textContent = money(0);
         document.getElementById('totalBreakdown').textContent = '';
         return;
@@ -158,6 +155,7 @@
       body.innerHTML = rows.map(s => `
         <tr>
           <td>${fmtDate(s.service_date)}</td>
+          <td>${s.service_time ? '<span class="text-primary fw-semibold">' + s.service_time + '</span>' : '<span class="text-muted">—</span>'}</td>
           <td><a href="/clients.html?id=${s.client_id}">${escapeHtml(s.client_name)}</a></td>
           <td><span class="badge text-bg-${catBadgeColor(s.category)}">${s.category}</span></td>
           <td>${escapeHtml(s.description || '')}</td>
@@ -175,7 +173,7 @@
       `).join('');
 
       body.querySelectorAll('.toggle').forEach(b => b.addEventListener('click', () => togglePaid(b.dataset.id)));
-      body.querySelectorAll('.edit').forEach(b => b.addEventListener('click', () => openEdit(b.dataset.id)));
+      body.querySelectorAll('.edit').forEach(b => b.addEventListener('click', () => ServiceForm.openEdit(Number(b.dataset.id))));
       body.querySelectorAll('.del').forEach(b => b.addEventListener('click', () => del(b.dataset.id)));
 
       const total = rows.reduce((a, s) => a + s.price, 0);
@@ -183,27 +181,6 @@
       const pending = total - paid;
       document.getElementById('totalFiltered').textContent = money(total);
       document.getElementById('totalBreakdown').textContent = `Cobrado: ${money(paid)} · Pendiente: ${money(pending)}`;
-    }
-
-    function openNew() {
-      form.reset();
-      form.id.value = '';
-      form.service_date.value = todayISO();
-      document.getElementById('modalTitle').textContent = 'Nuevo servicio';
-      modal.show();
-    }
-
-    async function openEdit(id) {
-      const s = await api('/api/services/' + id);
-      form.id.value = s.id;
-      form.client_id.value = s.client_id;
-      form.category.value = s.category;
-      form.service_date.value = s.service_date;
-      form.description.value = s.description || '';
-      form.price.value = s.price;
-      form.paid.checked = !!s.paid;
-      document.getElementById('modalTitle').textContent = 'Editar servicio';
-      modal.show();
     }
 
     async function togglePaid(id) {
@@ -217,23 +194,7 @@
       load();
     }
 
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const fd = new FormData(form);
-      const data = Object.fromEntries(fd);
-      data.paid = fd.get('paid') ? 1 : 0;
-      data.price = Number(data.price || 0);
-      const id = data.id;
-      delete data.id;
-      try {
-        if (id) await api('/api/services/' + id, { method: 'PUT', body: JSON.stringify(data) });
-        else await api('/api/services', { method: 'POST', body: JSON.stringify(data) });
-        modal.hide();
-        load();
-      } catch (err) { alert(err.message); }
-    });
-
-    document.getElementById('newBtn').addEventListener('click', openNew);
+    document.getElementById('newBtn').addEventListener('click', () => ServiceForm.openNew());
     document.getElementById('clearFilters').addEventListener('click', () => {
       ['f-category','f-paid','f-from','f-to'].forEach(id => document.getElementById(id).value = '');
       load();

@@ -17,6 +17,21 @@
     .view { display: none; }
     .view.active { display: block; }
     .demo-banner { background: #fff3cd; color: #664d03; font-size: .85rem; padding: 6px 12px; text-align: center; }
+    .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+    .cal-head-cell { font-weight: 600; font-size: .8rem; text-align: center; color: #6c757d; padding: 4px; text-transform: uppercase; }
+    .cal-day {
+      background: #fff; border: 1px solid #e5e7eb; border-radius: 6px;
+      min-height: 96px; padding: 6px; cursor: pointer; display: flex; flex-direction: column; gap: 2px;
+    }
+    .cal-day:hover { border-color: #0d6efd; }
+    .cal-day.other-month { background: #f8f9fa; color: #adb5bd; }
+    .cal-day.today { border: 2px solid #0d6efd; }
+    .cal-day.selected { box-shadow: 0 0 0 3px rgba(13,110,253,.25); border-color: #0d6efd; }
+    .cal-day-number { font-size: .8rem; font-weight: 600; }
+    .cal-pill { font-size: .7rem; padding: 1px 5px; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cal-pill.paid { background: #d1e7dd; color: #0f5132; }
+    .cal-pill.pending { background: #fff3cd; color: #664d03; }
+    .cal-more { font-size: .7rem; color: #6c757d; }
   </style>
 </head>
 <body>
@@ -32,6 +47,7 @@
       <span class="navbar-brand">Service CRM</span>
       <ul class="navbar-nav">
         <li class="nav-item"><a class="nav-link nav-tab active" href="#" data-view="dashboard">Dashboard</a></li>
+        <li class="nav-item"><a class="nav-link nav-tab" href="#" data-view="agenda">Agenda</a></li>
         <li class="nav-item"><a class="nav-link nav-tab" href="#" data-view="clients">Clientes</a></li>
         <li class="nav-item"><a class="nav-link nav-tab" href="#" data-view="services">Servicios</a></li>
       </ul>
@@ -54,6 +70,31 @@
         <div class="col-lg-6"><div class="card p-3"><h2 class="h6 text-muted">Últimos 12 meses</h2><div id="by-month"></div></div></div>
         <div class="col-lg-6"><div class="card p-3"><h2 class="h6 text-muted">Top clientes</h2><div id="top-clients"></div></div></div>
         <div class="col-lg-6"><div class="card p-3"><h2 class="h6 text-muted">Clientes con pagos pendientes</h2><div id="pending-clients"></div></div></div>
+      </div>
+    </section>
+
+    <!-- AGENDA -->
+    <section class="view" id="view-agenda">
+      <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <h1 class="h3 mb-0">Agenda</h1>
+        <div class="d-flex align-items-center gap-2">
+          <button class="btn btn-outline-secondary btn-sm" id="prevMonth">←</button>
+          <strong id="monthLabel" style="min-width: 180px; text-align: center;"></strong>
+          <button class="btn btn-outline-secondary btn-sm" id="nextMonth">→</button>
+          <button class="btn btn-outline-primary btn-sm" id="todayBtn">Hoy</button>
+          <button class="btn btn-primary btn-sm" id="newOnSelected">+ Agendar en el día</button>
+        </div>
+      </div>
+      <div class="row g-3">
+        <div class="col-lg-8">
+          <div class="card p-3">
+            <div class="calendar-grid mb-1" id="cal-head"></div>
+            <div class="calendar-grid" id="cal-grid"></div>
+          </div>
+        </div>
+        <div class="col-lg-4">
+          <div class="card p-3"><h2 class="h6 mb-3" id="dayTitle">Seleccioná un día</h2><div id="dayList" class="small text-muted">—</div></div>
+        </div>
       </div>
     </section>
 
@@ -90,11 +131,11 @@
       </div></div>
       <div class="card p-0"><div class="table-responsive"><table class="table table-hover mb-0">
         <thead class="table-light"><tr>
-          <th>Fecha</th><th>Cliente</th><th>Rubro</th><th>Descripción</th><th class="text-end">Precio</th><th>Estado</th><th></th>
+          <th>Fecha</th><th>Hora</th><th>Cliente</th><th>Rubro</th><th>Descripción</th><th class="text-end">Precio</th><th>Estado</th><th></th>
         </tr></thead>
         <tbody id="services-body"></tbody>
         <tfoot class="table-light"><tr>
-          <th colspan="4" class="text-end">Totales:</th>
+          <th colspan="5" class="text-end">Totales:</th>
           <th class="text-end money" id="totalFiltered">$0</th>
           <th colspan="2" class="small text-muted" id="totalBreakdown"></th>
         </tr></tfoot>
@@ -143,7 +184,11 @@
         <input type="hidden" name="id" />
         <div class="mb-2"><label class="form-label">Cliente *</label><select class="form-select" name="client_id" required id="svcClientSelect"></select></div>
         <div class="mb-2"><label class="form-label">Rubro *</label><select class="form-select" name="category" required id="svcCategorySelect"></select></div>
-        <div class="mb-2"><label class="form-label">Fecha *</label><input class="form-control" type="date" name="service_date" required /></div>
+        <div class="row g-2 mb-2">
+          <div class="col-7"><label class="form-label">Fecha *</label><input class="form-control" type="date" name="service_date" required /></div>
+          <div class="col-5"><label class="form-label">Hora</label><input class="form-control" type="time" name="service_time" /></div>
+        </div>
+        <div id="daySchedule" class="mb-2"></div>
         <div class="mb-2"><label class="form-label">Descripción</label><textarea class="form-control" name="description" rows="2"></textarea></div>
         <div class="mb-2"><label class="form-label">Precio</label><input class="form-control" type="number" step="0.01" min="0" name="price" /></div>
         <div class="form-check"><input class="form-check-input" type="checkbox" name="paid" id="paidChk" value="1" />
@@ -160,7 +205,9 @@
   <script>
   (() => {
     const CATEGORIES = ['Jardinería', 'Limpieza', 'Fletes', 'Pintura', 'Otro'];
-    const STORAGE_KEY = 'service-crm-prototype-v1';
+    const STORAGE_KEY = 'service-crm-prototype-v2';
+    const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    const DOW_ES = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
 
     // ---------- helpers ----------
     const $ = (s, r = document) => r.querySelector(s);
@@ -169,6 +216,9 @@
     const fmtDate = s => { if (!s) return ''; const d = s.length <= 10 ? new Date(s+'T00:00:00') : new Date(s); return isNaN(d) ? s : d.toLocaleDateString('es-AR'); };
     const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
     const daysAgo = n => { const d = new Date(); d.setDate(d.getDate()-n); return d.toISOString().slice(0,10); };
+    const startOfMonth = d => new Date(d.getFullYear(), d.getMonth(), 1);
+    const toISO = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const parseISO = s => new Date(s + 'T00:00:00');
     const escapeHtml = s => String(s ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[ch]);
     const catColor = c => ({ 'Jardinería':'success','Limpieza':'info','Fletes':'warning','Pintura':'primary','Otro':'secondary' }[c] || 'secondary');
 
@@ -194,23 +244,25 @@
       sampleClients.forEach(c => state.clients.push({ id: nextId('client'), ...c, created_at: new Date().toISOString() }));
 
       const sampleServices = [
-        { cid: 1, category: 'Jardinería', description: 'Corte de pasto y poda',    date: daysAgo(2),   price: 18000, paid: 1 },
-        { cid: 1, category: 'Jardinería', description: 'Mantenimiento mensual',    date: daysAgo(32),  price: 18000, paid: 1 },
-        { cid: 2, category: 'Limpieza',   description: 'Limpieza profunda cocina', date: daysAgo(5),   price: 25000, paid: 0 },
-        { cid: 2, category: 'Pintura',    description: 'Pintura living + comedor', date: daysAgo(40),  price: 180000, paid: 1 },
-        { cid: 3, category: 'Fletes',     description: 'Mudanza chica',            date: daysAgo(10),  price: 45000, paid: 0 },
-        { cid: 3, category: 'Limpieza',   description: 'Limpieza post obra',       date: daysAgo(70),  price: 60000, paid: 1 },
-        { cid: 4, category: 'Pintura',    description: 'Retoque frente oficina',   date: daysAgo(1),   price: 35000, paid: 0 },
-        { cid: 4, category: 'Limpieza',   description: 'Limpieza semanal',         date: daysAgo(8),   price: 15000, paid: 1 },
-        { cid: 4, category: 'Limpieza',   description: 'Limpieza semanal',         date: daysAgo(15),  price: 15000, paid: 1 },
-        { cid: 4, category: 'Limpieza',   description: 'Limpieza semanal',         date: daysAgo(22),  price: 15000, paid: 0 },
-        { cid: 5, category: 'Jardinería', description: 'Diseño y plantado',        date: daysAgo(95),  price: 120000, paid: 1 },
-        { cid: 5, category: 'Jardinería', description: 'Corte + riego',            date: daysAgo(12),  price: 22000, paid: 0 },
-        { cid: 5, category: 'Fletes',     description: 'Traslado de macetas',      date: daysAgo(3),   price: 12000, paid: 0 }
+        { cid: 1, category: 'Jardinería', description: 'Corte de pasto y poda',    date: daysAgo(2),   time: '09:00', price: 18000, paid: 1 },
+        { cid: 1, category: 'Jardinería', description: 'Mantenimiento mensual',    date: daysAgo(32),  time: '09:00', price: 18000, paid: 1 },
+        { cid: 2, category: 'Limpieza',   description: 'Limpieza profunda cocina', date: daysAgo(5),   time: '14:00', price: 25000, paid: 0 },
+        { cid: 2, category: 'Pintura',    description: 'Pintura living + comedor', date: daysAgo(40),  time: '08:00', price: 180000, paid: 1 },
+        { cid: 3, category: 'Fletes',     description: 'Mudanza chica',            date: daysAgo(10),  time: '10:30', price: 45000, paid: 0 },
+        { cid: 3, category: 'Limpieza',   description: 'Limpieza post obra',       date: daysAgo(70),  time: '13:00', price: 60000, paid: 1 },
+        { cid: 4, category: 'Pintura',    description: 'Retoque frente oficina',   date: daysAgo(1),   time: '16:00', price: 35000, paid: 0 },
+        { cid: 4, category: 'Limpieza',   description: 'Limpieza semanal',         date: daysAgo(8),   time: '11:00', price: 15000, paid: 1 },
+        { cid: 4, category: 'Limpieza',   description: 'Limpieza semanal',         date: daysAgo(15),  time: '11:00', price: 15000, paid: 1 },
+        { cid: 4, category: 'Limpieza',   description: 'Limpieza semanal',         date: daysAgo(22),  time: '11:00', price: 15000, paid: 0 },
+        { cid: 5, category: 'Jardinería', description: 'Diseño y plantado',        date: daysAgo(95),  time: '09:30', price: 120000, paid: 1 },
+        { cid: 5, category: 'Jardinería', description: 'Corte + riego',            date: daysAgo(12),  time: '08:30', price: 22000, paid: 0 },
+        { cid: 5, category: 'Fletes',     description: 'Traslado de macetas',      date: daysAgo(3),   time: '15:00', price: 12000, paid: 0 },
+        { cid: 1, category: 'Jardinería', description: 'Poda programada',          date: daysAgo(-3),  time: '10:00', price: 20000, paid: 0 },
+        { cid: 5, category: 'Limpieza',   description: 'Limpieza programada',      date: daysAgo(-5),  time: '14:00', price: 18000, paid: 0 }
       ];
       sampleServices.forEach(s => state.services.push({
         id: nextId('service'), client_id: s.cid, category: s.category, description: s.description,
-        service_date: s.date, price: s.price, paid: s.paid, paid_at: s.paid ? new Date().toISOString() : null
+        service_date: s.date, service_time: s.time || null, price: s.price, paid: s.paid, paid_at: s.paid ? new Date().toISOString() : null
       }));
       save();
     }
@@ -378,9 +430,10 @@
         </div>
         <h6>Historial</h6>
         ${services.length === 0 ? '<p class="text-muted small">Sin servicios.</p>' : `
-        <table class="table table-sm"><thead><tr><th>Fecha</th><th>Rubro</th><th>Descripción</th><th class="text-end">Precio</th><th>Estado</th></tr></thead>
+        <table class="table table-sm"><thead><tr><th>Fecha</th><th>Hora</th><th>Rubro</th><th>Descripción</th><th class="text-end">Precio</th><th>Estado</th></tr></thead>
         <tbody>${services.map(s => `<tr>
           <td>${fmtDate(s.service_date)}</td>
+          <td>${s.service_time || '<span class="text-muted">—</span>'}</td>
           <td><span class="badge text-bg-${catColor(s.category)}">${s.category}</span></td>
           <td>${escapeHtml(s.description||'')}</td>
           <td class="text-end money">${money(s.price)}</td>
@@ -413,13 +466,14 @@
         .sort((a,b) => b.service_date.localeCompare(a.service_date) || b.id - a.id);
       const body = $('#services-body');
       if (!rows.length) {
-        body.innerHTML = '<tr><td colspan="7" class="text-muted text-center p-4">Sin servicios.</td></tr>';
+        body.innerHTML = '<tr><td colspan="8" class="text-muted text-center p-4">Sin servicios.</td></tr>';
         $('#totalFiltered').textContent = money(0); $('#totalBreakdown').textContent = ''; return;
       }
       const clientName = id => { const c = state.clients.find(x=>x.id===id); return c ? c.name : '?'; };
       body.innerHTML = rows.map(s => `
         <tr>
           <td>${fmtDate(s.service_date)}</td>
+          <td>${s.service_time ? '<span class="text-primary fw-semibold">'+s.service_time+'</span>' : '<span class="text-muted">—</span>'}</td>
           <td>${escapeHtml(clientName(s.client_id))}</td>
           <td><span class="badge text-bg-${catColor(s.category)}">${s.category}</span></td>
           <td>${escapeHtml(s.description||'')}</td>
@@ -440,21 +494,43 @@
       $('#totalBreakdown').textContent = `Cobrado: ${money(paidAmt)} · Pendiente: ${money(total-paidAmt)}`;
     }
 
-    function openSvcNew() {
+    function openSvcNew(opts = {}) {
       if (!state.clients.length) { alert('Primero creá al menos un cliente.'); return; }
       const f = $('#svcForm'); f.reset(); f.id.value = '';
-      f.service_date.value = todayISO();
+      f.service_date.value = opts.date || todayISO();
+      if (opts.clientId) f.client_id.value = opts.clientId;
       $('#svcModalTitle').textContent = 'Nuevo servicio';
+      renderDaySchedule();
       svcModal.show();
     }
     function openSvcEdit(id) {
       const s = state.services.find(x => x.id === id); if (!s) return;
       const f = $('#svcForm');
       f.id.value = s.id; f.client_id.value = s.client_id; f.category.value = s.category;
-      f.service_date.value = s.service_date; f.description.value = s.description || '';
+      f.service_date.value = s.service_date; f.service_time.value = s.service_time || '';
+      f.description.value = s.description || '';
       f.price.value = s.price; f.paid.checked = !!s.paid;
       $('#svcModalTitle').textContent = 'Editar servicio';
+      renderDaySchedule();
       svcModal.show();
+    }
+    function renderDaySchedule() {
+      const box = $('#daySchedule'); if (!box) return;
+      const f = $('#svcForm'); const date = f.service_date.value;
+      const editingId = Number(f.id.value || 0);
+      if (!date) { box.innerHTML = ''; return; }
+      const sameDay = state.services
+        .filter(s => s.service_date === date && s.id !== editingId)
+        .sort((a,b) => (a.service_time || '99:99').localeCompare(b.service_time || '99:99'));
+      if (!sameDay.length) {
+        box.innerHTML = `<div class="alert alert-success py-2 px-3 small mb-0">📅 No hay otros servicios ese día.</div>`;
+        return;
+      }
+      const clientName = id => { const c = state.clients.find(x=>x.id===id); return c ? c.name : '?'; };
+      box.innerHTML = `<div class="alert alert-light border py-2 px-3 small mb-0">
+        <div class="fw-semibold mb-1">📅 Agenda de ese día:</div>
+        ${sameDay.map(s => `<div><strong>${s.service_time || '— : —'}</strong> · ${escapeHtml(clientName(s.client_id))} <span class="text-muted">(${s.category})</span></div>`).join('')}
+      </div>`;
     }
     function toggleSvc(id) {
       const s = state.services.find(x => x.id === id); if (!s) return;
@@ -471,12 +547,13 @@
       e.preventDefault();
       const data = Object.fromEntries(new FormData(e.target));
       const paid = data.paid ? 1 : 0;
+      const time = /^\d{2}:\d{2}$/.test((data.service_time||'').trim()) ? data.service_time.trim() : null;
       if (data.id) {
         const s = state.services.find(x => x.id === Number(data.id));
         const becamePaid = paid && !s.paid;
         Object.assign(s, {
           client_id: Number(data.client_id), category: data.category,
-          description: data.description || null, service_date: data.service_date,
+          description: data.description || null, service_date: data.service_date, service_time: time,
           price: Number(data.price||0), paid,
           paid_at: paid ? (becamePaid ? new Date().toISOString() : s.paid_at) : null
         });
@@ -484,19 +561,99 @@
         state.services.push({
           id: nextId('service'),
           client_id: Number(data.client_id), category: data.category,
-          description: data.description || null, service_date: data.service_date,
+          description: data.description || null, service_date: data.service_date, service_time: time,
           price: Number(data.price||0), paid,
           paid_at: paid ? new Date().toISOString() : null
         });
       }
       save(); svcModal.hide(); renderAll();
     });
+    $('#svcForm').service_date.addEventListener('change', renderDaySchedule);
     $('#newServiceBtn').addEventListener('click', openSvcNew);
     ['f-category','f-paid','f-from','f-to'].forEach(id => $('#'+id).addEventListener('change', renderServices));
     $('#clearFilters').addEventListener('click', () => {
       ['f-category','f-paid','f-from','f-to'].forEach(id => $('#'+id).value = '');
       renderServices();
     });
+
+    // ---------- agenda ----------
+    let currentMonth = startOfMonth(new Date());
+    let selectedDate = toISO(new Date());
+
+    function renderAgenda() {
+      const y = currentMonth.getFullYear(), m = currentMonth.getMonth();
+      $('#monthLabel').textContent = `${MONTHS_ES[m]} ${y}`;
+      $('#cal-head').innerHTML = DOW_ES.map(d => `<div class="cal-head-cell">${d}</div>`).join('');
+
+      const first = new Date(y, m, 1);
+      const startOffset = (first.getDay() + 6) % 7;
+      const daysInMonth = new Date(y, m + 1, 0).getDate();
+      const today = toISO(new Date());
+      const cells = [];
+      const prevMonthDays = new Date(y, m, 0).getDate();
+      for (let i = startOffset - 1; i >= 0; i--) cells.push({ date: toISO(new Date(y, m - 1, prevMonthDays - i)), other: true });
+      for (let d = 1; d <= daysInMonth; d++) cells.push({ date: toISO(new Date(y, m, d)), other: false });
+      while (cells.length % 7 !== 0) {
+        const last = parseISO(cells[cells.length-1].date); last.setDate(last.getDate()+1);
+        cells.push({ date: toISO(last), other: true });
+      }
+
+      const byDate = {};
+      state.services.forEach(s => { (byDate[s.service_date] = byDate[s.service_date] || []).push(s); });
+      const clientName = id => { const c = state.clients.find(x=>x.id===id); return c ? c.name : '?'; };
+
+      $('#cal-grid').innerHTML = cells.map(c => {
+        const items = (byDate[c.date] || []).slice().sort((a,b) => (a.service_time||'99:99').localeCompare(b.service_time||'99:99'));
+        const cls = ['cal-day'];
+        if (c.other) cls.push('other-month');
+        if (c.date === today) cls.push('today');
+        if (c.date === selectedDate) cls.push('selected');
+        const visible = items.slice(0, 3);
+        const more = items.length - visible.length;
+        return `<div class="${cls.join(' ')}" data-date="${c.date}">
+          <div class="cal-day-number">${parseISO(c.date).getDate()}</div>
+          ${visible.map(s => `<div class="cal-pill ${s.paid?'paid':'pending'}" title="${escapeHtml(clientName(s.client_id))} · ${s.category}">${s.service_time ? s.service_time+' ' : ''}${escapeHtml(clientName(s.client_id))}</div>`).join('')}
+          ${more > 0 ? `<div class="cal-more">+${more} más</div>` : ''}
+        </div>`;
+      }).join('');
+
+      $$('.cal-day').forEach(el => el.addEventListener('click', () => {
+        selectedDate = el.dataset.date;
+        renderAgenda();
+      }));
+
+      // panel del día
+      const items = (byDate[selectedDate] || []).slice().sort((a,b) => (a.service_time||'99:99').localeCompare(b.service_time||'99:99'));
+      const d = parseISO(selectedDate);
+      $('#dayTitle').textContent = `${DOW_ES[(d.getDay()+6)%7]} ${d.getDate()} de ${MONTHS_ES[d.getMonth()].toLowerCase()}`;
+      const list = $('#dayList');
+      if (!items.length) {
+        list.innerHTML = '<p class="text-muted small mb-2">Sin servicios.</p><button class="btn btn-sm btn-primary" id="newHere">+ Agendar acá</button>';
+      } else {
+        list.innerHTML = `<ul class="list-group list-group-flush">${items.map(s => `
+          <li class="list-group-item px-0">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <div class="fw-semibold">${s.service_time ? `<span class="text-primary">${s.service_time}</span> · ` : '<span class="text-muted">— : —</span> · '}${escapeHtml(clientName(s.client_id))}</div>
+                <div class="small"><span class="badge text-bg-${catColor(s.category)}">${s.category}</span>${s.description ? ' · '+escapeHtml(s.description) : ''}</div>
+              </div>
+              <div class="text-end small">
+                <div class="money fw-bold">${money(s.price)}</div>
+                ${s.paid ? '<span class="badge text-bg-success">Pagado</span>' : '<span class="badge text-bg-warning">Pendiente</span>'}
+              </div>
+            </div>
+            <div class="mt-1"><button class="btn btn-sm btn-outline-secondary edit-svc-agenda" data-id="${s.id}">Editar</button></div>
+          </li>`).join('')}</ul>
+          <button class="btn btn-sm btn-primary mt-3" id="newHere">+ Agendar acá</button>`;
+        $$('.edit-svc-agenda', list).forEach(b => b.addEventListener('click', () => openSvcEdit(Number(b.dataset.id))));
+      }
+      $('#newHere')?.addEventListener('click', () => openSvcNew({ date: selectedDate }));
+    }
+
+    $('#prevMonth').addEventListener('click', () => { currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth()-1, 1); renderAgenda(); });
+    $('#nextMonth').addEventListener('click', () => { currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth()+1, 1); renderAgenda(); });
+    $('#todayBtn').addEventListener('click', () => { currentMonth = startOfMonth(new Date()); selectedDate = toISO(new Date()); renderAgenda(); });
+    $('#newOnSelected').addEventListener('click', () => openSvcNew({ date: selectedDate }));
 
     // ---------- demo banner actions ----------
     $('#resetDemo').addEventListener('click', () => {
@@ -510,7 +667,7 @@
     });
 
     // ---------- init ----------
-    function renderAll() { fillSelects(); renderDashboard(); renderClients(); renderServices(); }
+    function renderAll() { fillSelects(); renderDashboard(); renderClients(); renderServices(); renderAgenda(); }
 
     load();
     if (!state.clients.length && !state.services.length) seed();

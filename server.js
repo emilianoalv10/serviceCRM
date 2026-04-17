@@ -59,7 +59,7 @@ app.use('/api/clients', require('./routes/clients'));
 app.use('/api/services', require('./routes/services'));
 app.use('/api/analytics', require('./routes/analytics'));
 
-app.get(['/', '/index.html', '/clients.html', '/services.html'], requireAuth, (req, res, next) => {
+app.get(['/', '/index.html', '/clients.html', '/services.html', '/agenda.html'], requireAuth, (req, res, next) => {
   next();
 });
 

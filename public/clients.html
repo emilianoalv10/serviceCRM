@@ -183,11 +183,12 @@
         <h6>Historial de servicios</h6>
         ${c.services.length === 0 ? '<p class="text-muted small">Sin servicios.</p>' : `
           <table class="table table-sm">
-            <thead><tr><th>Fecha</th><th>Rubro</th><th>Descripción</th><th class="text-end">Precio</th><th>Estado</th></tr></thead>
+            <thead><tr><th>Fecha</th><th>Hora</th><th>Rubro</th><th>Descripción</th><th class="text-end">Precio</th><th>Estado</th></tr></thead>
             <tbody>
               ${c.services.map(s => `
                 <tr>
                   <td>${fmtDate(s.service_date)}</td>
+                  <td>${s.service_time || '<span class="text-muted">—</span>'}</td>
                   <td><span class="badge text-bg-${catBadgeColor(s.category)}">${s.category}</span></td>
                   <td>${escapeHtml(s.description || '')}</td>
                   <td class="text-end money">${money(s.price)}</td>

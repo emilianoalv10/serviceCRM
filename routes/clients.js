@@ -33,7 +33,7 @@ router.get('/', (req, res) => {
 router.get('/:id', (req, res) => {
   const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id);
   if (!client) return res.status(404).json({ error: 'No encontrado' });
-  const services = db.prepare('SELECT * FROM services WHERE client_id = ? ORDER BY service_date DESC').all(req.params.id);
+  const services = db.prepare('SELECT * FROM services WHERE client_id = ? ORDER BY service_date DESC, service_time DESC').all(req.params.id);
   res.json({ ...client, services });
 });
 

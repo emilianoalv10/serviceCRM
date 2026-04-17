@@ -28,6 +28,7 @@ db.exec(`
     category TEXT NOT NULL,
     description TEXT,
     service_date TEXT NOT NULL,
+    service_time TEXT,
     price REAL NOT NULL DEFAULT 0,
     paid INTEGER NOT NULL DEFAULT 0,
     paid_at TEXT,
@@ -44,6 +45,11 @@ db.exec(`
 const clientColumns = db.prepare('PRAGMA table_info(clients)').all().map(r => r.name);
 if (!clientColumns.includes('map_url')) {
   db.exec('ALTER TABLE clients ADD COLUMN map_url TEXT');
+}
+
+const serviceColumns = db.prepare('PRAGMA table_info(services)').all().map(r => r.name);
+if (!serviceColumns.includes('service_time')) {
+  db.exec('ALTER TABLE services ADD COLUMN service_time TEXT');
 }
 
 module.exports = db;
