@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Service CRM · Prototipo</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <style>
+    body { background: #f6f7fb; }
+    .navbar-brand { font-weight: 600; }
+    .card { border: 0; }
+    .stat-card .value { font-size: 1.6rem; font-weight: 600; }
+    .stat-card .label { color: #6c757d; font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; }
+    .bar { background: #e9ecef; border-radius: 4px; height: 8px; overflow: hidden; }
+    .bar > span { display: block; height: 100%; background: #0d6efd; }
+    .money { font-variant-numeric: tabular-nums; }
+    .view { display: none; }
+    .view.active { display: block; }
+    .demo-banner { background: #fff3cd; color: #664d03; font-size: .85rem; padding: 6px 12px; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="demo-banner">
+    🧪 Prototipo local — los datos se guardan solo en tu navegador (localStorage).
+    <button class="btn btn-link btn-sm p-0 align-baseline" id="resetDemo">Reiniciar con datos de ejemplo</button>
+    ·
+    <button class="btn btn-link btn-sm p-0 align-baseline" id="wipeDemo">Vaciar todo</button>
+  </div>
+
+  <nav class="navbar navbar-expand navbar-dark bg-primary">
+    <div class="container">
+      <span class="navbar-brand">Service CRM</span>
+      <ul class="navbar-nav">
+        <li class="nav-item"><a class="nav-link nav-tab active" href="#" data-view="dashboard">Dashboard</a></li>
+        <li class="nav-item"><a class="nav-link nav-tab" href="#" data-view="clients">Clientes</a></li>
+        <li class="nav-item"><a class="nav-link nav-tab" href="#" data-view="services">Servicios</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="container py-4">
+
+    <!-- DASHBOARD -->
+    <section class="view active" id="view-dashboard">
+      <h1 class="h3 mb-4">Dashboard</h1>
+      <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3"><div class="card stat-card p-3"><div class="label">Clientes</div><div class="value" id="s-clients">–</div></div></div>
+        <div class="col-6 col-md-3"><div class="card stat-card p-3"><div class="label">Servicios</div><div class="value" id="s-services">–</div></div></div>
+        <div class="col-6 col-md-3"><div class="card stat-card p-3"><div class="label">Cobrado</div><div class="value text-success money" id="s-paid">–</div></div></div>
+        <div class="col-6 col-md-3"><div class="card stat-card p-3"><div class="label">Pendiente</div><div class="value text-danger money" id="s-pending">–</div></div></div>
+      </div>
+      <div class="row g-3">
+        <div class="col-lg-6"><div class="card p-3"><h2 class="h6 text-muted">Por rubro</h2><div id="by-category"></div></div></div>
+        <div class="col-lg-6"><div class="card p-3"><h2 class="h6 text-muted">Últimos 12 meses</h2><div id="by-month"></div></div></div>
+        <div class="col-lg-6"><div class="card p-3"><h2 class="h6 text-muted">Top clientes</h2><div id="top-clients"></div></div></div>
+        <div class="col-lg-6"><div class="card p-3"><h2 class="h6 text-muted">Clientes con pagos pendientes</h2><div id="pending-clients"></div></div></div>
+      </div>
+    </section>
+
+    <!-- CLIENTS -->
+    <section class="view" id="view-clients">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="h3 mb-0">Clientes</h1>
+        <button class="btn btn-primary" id="newClientBtn">+ Nuevo cliente</button>
+      </div>
+      <div class="mb-3"><input id="clientSearch" class="form-control" placeholder="Buscar…" /></div>
+      <div class="card p-0"><div class="table-responsive"><table class="table table-hover mb-0">
+        <thead class="table-light"><tr>
+          <th>Nombre</th><th>Teléfono</th><th>Email</th>
+          <th class="text-end">Servicios</th><th class="text-end">Facturado</th><th class="text-end">Pendiente</th><th></th>
+        </tr></thead>
+        <tbody id="clients-body"></tbody>
+      </table></div></div>
+    </section>
+
+    <!-- SERVICES -->
+    <section class="view" id="view-services">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="h3 mb-0">Servicios</h1>
+        <button class="btn btn-primary" id="newServiceBtn">+ Nuevo servicio</button>
+      </div>
+      <div class="card p-3 mb-3"><div class="row g-2">
+        <div class="col-md-3"><select id="f-category" class="form-select"></select></div>
+        <div class="col-md-3"><select id="f-paid" class="form-select">
+          <option value="">Pagos: todos</option><option value="0">Solo pendientes</option><option value="1">Solo pagados</option>
+        </select></div>
+        <div class="col-md-2"><input type="date" id="f-from" class="form-control" title="Desde" /></div>
+        <div class="col-md-2"><input type="date" id="f-to" class="form-control" title="Hasta" /></div>
+        <div class="col-md-2"><button class="btn btn-outline-secondary w-100" id="clearFilters">Limpiar</button></div>
+      </div></div>
+      <div class="card p-0"><div class="table-responsive"><table class="table table-hover mb-0">
+        <thead class="table-light"><tr>
+          <th>Fecha</th><th>Cliente</th><th>Rubro</th><th>Descripción</th><th class="text-end">Precio</th><th>Estado</th><th></th>
+        </tr></thead>
+        <tbody id="services-body"></tbody>
+        <tfoot class="table-light"><tr>
+          <th colspan="4" class="text-end">Totales:</th>
+          <th class="text-end money" id="totalFiltered">$0</th>
+          <th colspan="2" class="small text-muted" id="totalBreakdown"></th>
+        </tr></tfoot>
+      </table></div></div>
+    </section>
+  </main>
+
+  <!-- Modal cliente -->
+  <div class="modal fade" id="clientModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+    <form id="clientForm">
+      <div class="modal-header"><h5 class="modal-title" id="clientModalTitle">Nuevo cliente</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <input type="hidden" name="id" />
+        <div class="mb-2"><label class="form-label">Nombre *</label><input class="form-control" name="name" required /></div>
+        <div class="mb-2"><label class="form-label">Teléfono</label><input class="form-control" name="phone" /></div>
+        <div class="mb-2"><label class="form-label">Email</label><input class="form-control" name="email" type="email" /></div>
+        <div class="mb-2"><label class="form-label">Dirección</label><input class="form-control" name="address" /></div>
+        <div class="mb-2"><label class="form-label">Notas</label><textarea class="form-control" name="notes" rows="2"></textarea></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-primary" type="submit">Guardar</button>
+      </div>
+    </form>
+  </div></div></div>
+
+  <!-- Modal detalle cliente -->
+  <div class="modal fade" id="detailModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title" id="detailTitle">Cliente</h5>
+      <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body" id="detailBody"></div>
+  </div></div></div>
+
+  <!-- Modal servicio -->
+  <div class="modal fade" id="svcModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+    <form id="svcForm">
+      <div class="modal-header"><h5 class="modal-title" id="svcModalTitle">Nuevo servicio</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <input type="hidden" name="id" />
+        <div class="mb-2"><label class="form-label">Cliente *</label><select class="form-select" name="client_id" required id="svcClientSelect"></select></div>
+        <div class="mb-2"><label class="form-label">Rubro *</label><select class="form-select" name="category" required id="svcCategorySelect"></select></div>
+        <div class="mb-2"><label class="form-label">Fecha *</label><input class="form-control" type="date" name="service_date" required /></div>
+        <div class="mb-2"><label class="form-label">Descripción</label><textarea class="form-control" name="description" rows="2"></textarea></div>
+        <div class="mb-2"><label class="form-label">Precio</label><input class="form-control" type="number" step="0.01" min="0" name="price" /></div>
+        <div class="form-check"><input class="form-check-input" type="checkbox" name="paid" id="paidChk" value="1" />
+          <label class="form-check-label" for="paidChk">Ya está pagado</label></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-primary" type="submit">Guardar</button>
+      </div>
+    </form>
+  </div></div></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+  (() => {
+    const CATEGORIES = ['Jardinería', 'Limpieza', 'Fletes', 'Pintura', 'Otro'];
+    const STORAGE_KEY = 'service-crm-prototype-v1';
+
+    // ---------- helpers ----------
+    const $ = (s, r = document) => r.querySelector(s);
+    const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+    const money = n => '$' + (Number(n)||0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const fmtDate = s => { if (!s) return ''; const d = s.length <= 10 ? new Date(s+'T00:00:00') : new Date(s); return isNaN(d) ? s : d.toLocaleDateString('es-AR'); };
+    const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+    const daysAgo = n => { const d = new Date(); d.setDate(d.getDate()-n); return d.toISOString().slice(0,10); };
+    const escapeHtml = s => String(s ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[ch]);
+    const catColor = c => ({ 'Jardinería':'success','Limpieza':'info','Fletes':'warning','Pintura':'primary','Otro':'secondary' }[c] || 'secondary');
+
+    // ---------- store (localStorage) ----------
+    const state = { clients: [], services: [], seq: { client: 1, service: 1 } };
+
+    function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+    function load() {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) Object.assign(state, JSON.parse(raw));
+    }
+    function nextId(kind) { const id = state.seq[kind]++; save(); return id; }
+
+    function seed() {
+      state.clients = []; state.services = []; state.seq = { client: 1, service: 1 };
+      const sampleClients = [
+        { name: 'María González',  phone: '11-2345-6789', email: 'maria@mail.com',  address: 'Av. Siempreviva 742',     notes: 'Quincena par.' },
+        { name: 'Carlos Fernández', phone: '11-3456-7890', email: 'carlos@mail.com', address: 'Belgrano 1020',            notes: 'Paga en efectivo.' },
+        { name: 'Lucía Rodríguez',  phone: '11-4567-8901', email: 'lucia@mail.com',  address: 'San Martín 300',           notes: '' },
+        { name: 'Diego Pérez',      phone: '11-5678-9012', email: 'diego@mail.com',  address: 'Rivadavia 5500, 3° A',     notes: 'Oficina.' },
+        { name: 'Ana Martínez',     phone: '11-6789-0123', email: 'ana@mail.com',    address: 'Libertador 2200',          notes: 'Casa con jardín grande.' }
+      ];
+      sampleClients.forEach(c => state.clients.push({ id: nextId('client'), ...c, created_at: new Date().toISOString() }));
+
+      const sampleServices = [
+        { cid: 1, category: 'Jardinería', description: 'Corte de pasto y poda',    date: daysAgo(2),   price: 18000, paid: 1 },
+        { cid: 1, category: 'Jardinería', description: 'Mantenimiento mensual',    date: daysAgo(32),  price: 18000, paid: 1 },
+        { cid: 2, category: 'Limpieza',   description: 'Limpieza profunda cocina', date: daysAgo(5),   price: 25000, paid: 0 },
+        { cid: 2, category: 'Pintura',    description: 'Pintura living + comedor', date: daysAgo(40),  price: 180000, paid: 1 },
+        { cid: 3, category: 'Fletes',     description: 'Mudanza chica',            date: daysAgo(10),  price: 45000, paid: 0 },
+        { cid: 3, category: 'Limpieza',   description: 'Limpieza post obra',       date: daysAgo(70),  price: 60000, paid: 1 },
+        { cid: 4, category: 'Pintura',    description: 'Retoque frente oficina',   date: daysAgo(1),   price: 35000, paid: 0 },
+        { cid: 4, category: 'Limpieza',   description: 'Limpieza semanal',         date: daysAgo(8),   price: 15000, paid: 1 },
+        { cid: 4, category: 'Limpieza',   description: 'Limpieza semanal',         date: daysAgo(15),  price: 15000, paid: 1 },
+        { cid: 4, category: 'Limpieza',   description: 'Limpieza semanal',         date: daysAgo(22),  price: 15000, paid: 0 },
+        { cid: 5, category: 'Jardinería', description: 'Diseño y plantado',        date: daysAgo(95),  price: 120000, paid: 1 },
+        { cid: 5, category: 'Jardinería', description: 'Corte + riego',            date: daysAgo(12),  price: 22000, paid: 0 },
+        { cid: 5, category: 'Fletes',     description: 'Traslado de macetas',      date: daysAgo(3),   price: 12000, paid: 0 }
+      ];
+      sampleServices.forEach(s => state.services.push({
+        id: nextId('service'), client_id: s.cid, category: s.category, description: s.description,
+        service_date: s.date, price: s.price, paid: s.paid, paid_at: s.paid ? new Date().toISOString() : null
+      }));
+      save();
+    }
+
+    // ---------- nav ----------
+    $$('.nav-tab').forEach(a => a.addEventListener('click', e => {
+      e.preventDefault();
+      $$('.nav-tab').forEach(x => x.classList.remove('active'));
+      a.classList.add('active');
+      $$('.view').forEach(v => v.classList.remove('active'));
+      $(`#view-${a.dataset.view}`).classList.add('active');
+      renderAll();
+    }));
+
+    // ---------- dashboard ----------
+    function renderDashboard() {
+      const svcs = state.services;
+      const totalBilled = svcs.reduce((a,s) => a + s.price, 0);
+      const totalPaid = svcs.filter(s => s.paid).reduce((a,s) => a + s.price, 0);
+      const totalPending = totalBilled - totalPaid;
+      $('#s-clients').textContent = state.clients.length;
+      $('#s-services').textContent = svcs.length;
+      $('#s-paid').textContent = money(totalPaid);
+      $('#s-pending').textContent = money(totalPending);
+
+      const byCat = CATEGORIES.map(c => {
+        const items = svcs.filter(s => s.category === c);
+        return { category: c, count: items.length, total: items.reduce((a,s)=>a+s.price,0), paid: items.filter(s=>s.paid).reduce((a,s)=>a+s.price,0) };
+      }).filter(r => r.count > 0).sort((a,b) => b.total - a.total);
+      const maxCat = Math.max(...byCat.map(r=>r.total), 1);
+      $('#by-category').innerHTML = byCat.length === 0 ? '<p class="text-muted small mb-0">Sin datos.</p>' : `
+        <table class="table table-sm mb-0"><thead><tr><th>Rubro</th><th class="text-end">Servicios</th><th class="text-end">Total</th><th style="width:30%"></th></tr></thead>
+        <tbody>${byCat.map(r => `<tr>
+          <td><span class="badge text-bg-${catColor(r.category)}">${r.category}</span></td>
+          <td class="text-end">${r.count}</td><td class="text-end money">${money(r.total)}</td>
+          <td><div class="bar"><span style="width:${(r.total/maxCat)*100}%"></span></div></td>
+        </tr>`).join('')}</tbody></table>`;
+
+      const byMonthMap = {};
+      svcs.forEach(s => {
+        const m = s.service_date.slice(0,7);
+        byMonthMap[m] = byMonthMap[m] || { month: m, count: 0, total: 0, paid: 0 };
+        byMonthMap[m].count++; byMonthMap[m].total += s.price;
+        if (s.paid) byMonthMap[m].paid += s.price;
+      });
+      const byMonth = Object.values(byMonthMap).sort((a,b) => a.month.localeCompare(b.month)).slice(-12);
+      const maxM = Math.max(...byMonth.map(r=>r.total), 1);
+      $('#by-month').innerHTML = byMonth.length === 0 ? '<p class="text-muted small mb-0">Sin datos.</p>' : `
+        <table class="table table-sm mb-0"><thead><tr><th>Mes</th><th class="text-end">Servicios</th><th class="text-end">Facturado</th><th class="text-end">Cobrado</th><th style="width:25%"></th></tr></thead>
+        <tbody>${byMonth.map(r => `<tr>
+          <td>${r.month}</td><td class="text-end">${r.count}</td>
+          <td class="text-end money">${money(r.total)}</td>
+          <td class="text-end money text-success">${money(r.paid)}</td>
+          <td><div class="bar"><span style="width:${(r.total/maxM)*100}%"></span></div></td>
+        </tr>`).join('')}</tbody></table>`;
+
+      const clientTotals = state.clients.map(c => {
+        const items = svcs.filter(s => s.client_id === c.id);
+        return { id: c.id, name: c.name, count: items.length,
+          total: items.reduce((a,s)=>a+s.price,0),
+          pending: items.filter(s=>!s.paid).reduce((a,s)=>a+s.price,0) };
+      });
+      const top = clientTotals.filter(c=>c.count>0).sort((a,b)=>b.total-a.total).slice(0,5);
+      $('#top-clients').innerHTML = top.length === 0 ? '<p class="text-muted small mb-0">Sin datos.</p>' : `
+        <table class="table table-sm mb-0"><thead><tr><th>Cliente</th><th class="text-end">Servicios</th><th class="text-end">Total</th></tr></thead>
+        <tbody>${top.map(r => `<tr><td><a href="#" class="client-link" data-id="${r.id}">${escapeHtml(r.name)}</a></td>
+          <td class="text-end">${r.count}</td><td class="text-end money">${money(r.total)}</td></tr>`).join('')}</tbody></table>`;
+
+      const pending = clientTotals.filter(c=>c.pending>0).sort((a,b)=>b.pending-a.pending).slice(0,10);
+      $('#pending-clients').innerHTML = pending.length === 0 ? '<p class="text-success small mb-0">¡Sin pendientes!</p>' : `
+        <table class="table table-sm mb-0"><thead><tr><th>Cliente</th><th class="text-end">Deuda</th></tr></thead>
+        <tbody>${pending.map(r => `<tr><td><a href="#" class="client-link" data-id="${r.id}">${escapeHtml(r.name)}</a></td>
+          <td class="text-end money text-danger">${money(r.pending)}</td></tr>`).join('')}</tbody></table>`;
+
+      $$('.client-link').forEach(a => a.addEventListener('click', e => { e.preventDefault(); openClientDetail(Number(a.dataset.id)); }));
+    }
+
+    // ---------- clients ----------
+    const clientModal = new bootstrap.Modal($('#clientModal'));
+    const detailModal = new bootstrap.Modal($('#detailModal'));
+
+    function renderClients() {
+      const q = $('#clientSearch').value.trim().toLowerCase();
+      const rows = state.clients
+        .filter(c => !q || (c.name + ' ' + (c.phone||'') + ' ' + (c.email||'')).toLowerCase().includes(q))
+        .map(c => {
+          const items = state.services.filter(s => s.client_id === c.id);
+          return { ...c, count: items.length,
+            total: items.reduce((a,s)=>a+s.price,0),
+            pending: items.filter(s=>!s.paid).reduce((a,s)=>a+s.price,0) };
+        })
+        .sort((a,b) => a.name.localeCompare(b.name));
+      const body = $('#clients-body');
+      if (!rows.length) { body.innerHTML = '<tr><td colspan="7" class="text-muted text-center p-4">Sin clientes.</td></tr>'; return; }
+      body.innerHTML = rows.map(c => `
+        <tr>
+          <td><a href="#" class="detail-link" data-id="${c.id}">${escapeHtml(c.name)}</a></td>
+          <td>${escapeHtml(c.phone||'')}</td><td>${escapeHtml(c.email||'')}</td>
+          <td class="text-end">${c.count}</td>
+          <td class="text-end money">${money(c.total)}</td>
+          <td class="text-end money ${c.pending>0?'text-danger':'text-muted'}">${money(c.pending)}</td>
+          <td class="text-end">
+            <button class="btn btn-sm btn-outline-secondary edit" data-id="${c.id}">Editar</button>
+            <button class="btn btn-sm btn-outline-danger del" data-id="${c.id}">Borrar</button>
+          </td>
+        </tr>`).join('');
+      $$('.detail-link', body).forEach(a => a.addEventListener('click', e => { e.preventDefault(); openClientDetail(Number(a.dataset.id)); }));
+      $$('.edit', body).forEach(b => b.addEventListener('click', () => openClientEdit(Number(b.dataset.id))));
+      $$('.del', body).forEach(b => b.addEventListener('click', () => delClient(Number(b.dataset.id))));
+    }
+
+    function openClientNew() {
+      $('#clientForm').reset(); $('#clientForm').id.value = '';
+      $('#clientModalTitle').textContent = 'Nuevo cliente';
+      clientModal.show();
+    }
+    function openClientEdit(id) {
+      const c = state.clients.find(x => x.id === id); if (!c) return;
+      const f = $('#clientForm');
+      f.id.value = c.id; f.name.value = c.name||''; f.phone.value = c.phone||'';
+      f.email.value = c.email||''; f.address.value = c.address||''; f.notes.value = c.notes||'';
+      $('#clientModalTitle').textContent = 'Editar cliente';
+      clientModal.show();
+    }
+    function delClient(id) {
+      if (!confirm('¿Borrar cliente y todos sus servicios?')) return;
+      state.clients = state.clients.filter(c => c.id !== id);
+      state.services = state.services.filter(s => s.client_id !== id);
+      save(); renderAll();
+    }
+    $('#clientForm').addEventListener('submit', e => {
+      e.preventDefault();
+      const f = e.target; const data = Object.fromEntries(new FormData(f));
+      if (!data.name.trim()) return;
+      if (data.id) {
+        const c = state.clients.find(x => x.id === Number(data.id));
+        Object.assign(c, { name: data.name.trim(), phone: data.phone||null, email: data.email||null, address: data.address||null, notes: data.notes||null });
+      } else {
+        state.clients.push({ id: nextId('client'), name: data.name.trim(), phone: data.phone||null, email: data.email||null, address: data.address||null, notes: data.notes||null, created_at: new Date().toISOString() });
+      }
+      save(); clientModal.hide(); renderAll();
+    });
+    $('#newClientBtn').addEventListener('click', openClientNew);
+    $('#clientSearch').addEventListener('input', renderClients);
+
+    function openClientDetail(id) {
+      const c = state.clients.find(x => x.id === id); if (!c) return;
+      const services = state.services.filter(s => s.client_id === id).sort((a,b) => b.service_date.localeCompare(a.service_date));
+      const total = services.reduce((a,s)=>a+s.price,0);
+      const pending = services.filter(s=>!s.paid).reduce((a,s)=>a+s.price,0);
+      $('#detailTitle').textContent = c.name;
+      $('#detailBody').innerHTML = `
+        <div class="mb-3 small text-muted">
+          ${c.phone ? '📞 '+escapeHtml(c.phone)+' · ' : ''}
+          ${c.email ? '✉️ '+escapeHtml(c.email)+' · ' : ''}
+          ${c.address ? '📍 '+escapeHtml(c.address) : ''}
+        </div>
+        ${c.notes ? `<div class="alert alert-light small">${escapeHtml(c.notes)}</div>` : ''}
+        <div class="row g-2 mb-3">
+          <div class="col"><div class="card p-2"><div class="small text-muted">Total</div><div class="money fw-bold">${money(total)}</div></div></div>
+          <div class="col"><div class="card p-2"><div class="small text-muted">Pendiente</div><div class="money fw-bold text-danger">${money(pending)}</div></div></div>
+          <div class="col"><div class="card p-2"><div class="small text-muted">Servicios</div><div class="fw-bold">${services.length}</div></div></div>
+        </div>
+        <h6>Historial</h6>
+        ${services.length === 0 ? '<p class="text-muted small">Sin servicios.</p>' : `
+        <table class="table table-sm"><thead><tr><th>Fecha</th><th>Rubro</th><th>Descripción</th><th class="text-end">Precio</th><th>Estado</th></tr></thead>
+        <tbody>${services.map(s => `<tr>
+          <td>${fmtDate(s.service_date)}</td>
+          <td><span class="badge text-bg-${catColor(s.category)}">${s.category}</span></td>
+          <td>${escapeHtml(s.description||'')}</td>
+          <td class="text-end money">${money(s.price)}</td>
+          <td>${s.paid ? '<span class="badge text-bg-success">Pagado</span>' : '<span class="badge text-bg-warning">Pendiente</span>'}</td>
+        </tr>`).join('')}</tbody></table>`}
+      `;
+      detailModal.show();
+    }
+
+    // ---------- services ----------
+    const svcModal = new bootstrap.Modal($('#svcModal'));
+
+    function fillSelects() {
+      $('#svcCategorySelect').innerHTML = CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join('');
+      $('#f-category').innerHTML = '<option value="">Todos los rubros</option>' + CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join('');
+      $('#svcClientSelect').innerHTML = '<option value="">— Seleccionar —</option>' +
+        state.clients.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+    }
+
+    function renderServices() {
+      const cat = $('#f-category').value;
+      const paid = $('#f-paid').value;
+      const from = $('#f-from').value;
+      const to = $('#f-to').value;
+      const rows = state.services
+        .filter(s => !cat || s.category === cat)
+        .filter(s => paid === '' || s.paid === Number(paid))
+        .filter(s => !from || s.service_date >= from)
+        .filter(s => !to || s.service_date <= to)
+        .sort((a,b) => b.service_date.localeCompare(a.service_date) || b.id - a.id);
+      const body = $('#services-body');
+      if (!rows.length) {
+        body.innerHTML = '<tr><td colspan="7" class="text-muted text-center p-4">Sin servicios.</td></tr>';
+        $('#totalFiltered').textContent = money(0); $('#totalBreakdown').textContent = ''; return;
+      }
+      const clientName = id => { const c = state.clients.find(x=>x.id===id); return c ? c.name : '?'; };
+      body.innerHTML = rows.map(s => `
+        <tr>
+          <td>${fmtDate(s.service_date)}</td>
+          <td>${escapeHtml(clientName(s.client_id))}</td>
+          <td><span class="badge text-bg-${catColor(s.category)}">${s.category}</span></td>
+          <td>${escapeHtml(s.description||'')}</td>
+          <td class="text-end money">${money(s.price)}</td>
+          <td><button class="btn btn-sm ${s.paid?'btn-success':'btn-outline-warning'} toggle" data-id="${s.id}">${s.paid?'Pagado':'Pendiente'}</button></td>
+          <td class="text-end">
+            <button class="btn btn-sm btn-outline-secondary edit-svc" data-id="${s.id}">Editar</button>
+            <button class="btn btn-sm btn-outline-danger del-svc" data-id="${s.id}">Borrar</button>
+          </td>
+        </tr>`).join('');
+      $$('.toggle', body).forEach(b => b.addEventListener('click', () => toggleSvc(Number(b.dataset.id))));
+      $$('.edit-svc', body).forEach(b => b.addEventListener('click', () => openSvcEdit(Number(b.dataset.id))));
+      $$('.del-svc', body).forEach(b => b.addEventListener('click', () => delSvc(Number(b.dataset.id))));
+
+      const total = rows.reduce((a,s)=>a+s.price,0);
+      const paidAmt = rows.filter(s=>s.paid).reduce((a,s)=>a+s.price,0);
+      $('#totalFiltered').textContent = money(total);
+      $('#totalBreakdown').textContent = `Cobrado: ${money(paidAmt)} · Pendiente: ${money(total-paidAmt)}`;
+    }
+
+    function openSvcNew() {
+      if (!state.clients.length) { alert('Primero creá al menos un cliente.'); return; }
+      const f = $('#svcForm'); f.reset(); f.id.value = '';
+      f.service_date.value = todayISO();
+      $('#svcModalTitle').textContent = 'Nuevo servicio';
+      svcModal.show();
+    }
+    function openSvcEdit(id) {
+      const s = state.services.find(x => x.id === id); if (!s) return;
+      const f = $('#svcForm');
+      f.id.value = s.id; f.client_id.value = s.client_id; f.category.value = s.category;
+      f.service_date.value = s.service_date; f.description.value = s.description || '';
+      f.price.value = s.price; f.paid.checked = !!s.paid;
+      $('#svcModalTitle').textContent = 'Editar servicio';
+      svcModal.show();
+    }
+    function toggleSvc(id) {
+      const s = state.services.find(x => x.id === id); if (!s) return;
+      s.paid = s.paid ? 0 : 1;
+      s.paid_at = s.paid ? new Date().toISOString() : null;
+      save(); renderAll();
+    }
+    function delSvc(id) {
+      if (!confirm('¿Borrar este servicio?')) return;
+      state.services = state.services.filter(s => s.id !== id);
+      save(); renderAll();
+    }
+    $('#svcForm').addEventListener('submit', e => {
+      e.preventDefault();
+      const data = Object.fromEntries(new FormData(e.target));
+      const paid = data.paid ? 1 : 0;
+      if (data.id) {
+        const s = state.services.find(x => x.id === Number(data.id));
+        const becamePaid = paid && !s.paid;
+        Object.assign(s, {
+          client_id: Number(data.client_id), category: data.category,
+          description: data.description || null, service_date: data.service_date,
+          price: Number(data.price||0), paid,
+          paid_at: paid ? (becamePaid ? new Date().toISOString() : s.paid_at) : null
+        });
+      } else {
+        state.services.push({
+          id: nextId('service'),
+          client_id: Number(data.client_id), category: data.category,
+          description: data.description || null, service_date: data.service_date,
+          price: Number(data.price||0), paid,
+          paid_at: paid ? new Date().toISOString() : null
+        });
+      }
+      save(); svcModal.hide(); renderAll();
+    });
+    $('#newServiceBtn').addEventListener('click', openSvcNew);
+    ['f-category','f-paid','f-from','f-to'].forEach(id => $('#'+id).addEventListener('change', renderServices));
+    $('#clearFilters').addEventListener('click', () => {
+      ['f-category','f-paid','f-from','f-to'].forEach(id => $('#'+id).value = '');
+      renderServices();
+    });
+
+    // ---------- demo banner actions ----------
+    $('#resetDemo').addEventListener('click', () => {
+      if (!confirm('Esto reemplaza todos los datos por el set de ejemplo. ¿Seguir?')) return;
+      seed(); renderAll();
+    });
+    $('#wipeDemo').addEventListener('click', () => {
+      if (!confirm('Esto borra todos los datos. ¿Seguir?')) return;
+      state.clients = []; state.services = []; state.seq = { client: 1, service: 1 };
+      save(); renderAll();
+    });
+
+    // ---------- init ----------
+    function renderAll() { fillSelects(); renderDashboard(); renderClients(); renderServices(); }
+
+    load();
+    if (!state.clients.length && !state.services.length) seed();
+    fillSelects();
+    renderAll();
+  })();
+  </script>
+</body>
+</html>
