@@ -15,15 +15,18 @@ Permite:
 - Bootstrap 5 (sin build step)
 - Auth básica por sesión (usuario/contraseña en variables de entorno)
 
-## Correr localmente
+## Correr localmente (prototipo / pruebas)
 
 ```bash
 npm install
-cp .env.example .env   # editar credenciales
+cp .env.example .env   # editar credenciales si querés
+npm run seed           # (opcional) carga 5 clientes y 13 servicios de ejemplo
 npm start
 ```
 
-Abrir http://localhost:3000 y loguearse con el usuario/contraseña del `.env`.
+Abrir http://localhost:3000 y loguearse con el usuario/contraseña del `.env` (por defecto `admin` / `cambia-esto`).
+
+Para empezar de cero, borrá `data/crm.db` y corré `npm run seed` de nuevo.
 
 ## Deploy a Railway
 
