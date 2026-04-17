@@ -18,6 +18,27 @@ function sanitizeTime(t) {
   return s;
 }
 
+const RECURRENCE = { weekly: 7, biweekly: 14, monthly: null };
+
+function addRecurrence(dateStr, kind, i) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  if (kind === 'weekly' || kind === 'biweekly') {
+    const step = RECURRENCE[kind];
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    dt.setUTCDate(dt.getUTCDate() + step * i);
+    return dt.toISOString().slice(0, 10);
+  }
+  if (kind === 'monthly') {
+    const targetMonth = m - 1 + i;
+    const probe = new Date(Date.UTC(y, targetMonth, 1));
+    const daysInMonth = new Date(Date.UTC(probe.getUTCFullYear(), probe.getUTCMonth() + 1, 0)).getUTCDate();
+    const day = Math.min(d, daysInMonth);
+    const dt = new Date(Date.UTC(probe.getUTCFullYear(), probe.getUTCMonth(), day));
+    return dt.toISOString().slice(0, 10);
+  }
+  return dateStr;
+}
+
 router.get('/', (req, res) => {
   const { client_id, category, paid, from, to, sort } = req.query;
   const where = [];
@@ -51,18 +72,37 @@ router.get('/:id', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-  const { client_id, category, description, service_date, service_time, price, paid } = req.body;
+  const { client_id, category, description, service_date, service_time, price, paid, recurrence, occurrences } = req.body;
   if (!client_id) return res.status(400).json({ error: 'Cliente obligatorio' });
   if (!category) return res.status(400).json({ error: 'Categoría obligatoria' });
   if (!service_date) return res.status(400).json({ error: 'Fecha obligatoria' });
+
   const priceNum = Number(price) || 0;
   const paidNum = paid ? 1 : 0;
-  const paidAt = paidNum ? new Date().toISOString() : null;
-  const info = db.prepare(`
+  const time = sanitizeTime(service_time);
+
+  const recKind = recurrence && RECURRENCE.hasOwnProperty(recurrence) ? recurrence : null;
+  const count = recKind ? Math.max(1, Math.min(52, Number(occurrences) || 1)) : 1;
+
+  const insert = db.prepare(`
     INSERT INTO services (client_id, category, description, service_date, service_time, price, paid, paid_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(client_id, category, description || null, service_date, sanitizeTime(service_time), priceNum, paidNum, paidAt);
-  res.status(201).json(db.prepare('SELECT * FROM services WHERE id = ?').get(info.lastInsertRowid));
+  `);
+
+  const insertMany = db.transaction(() => {
+    const ids = [];
+    for (let i = 0; i < count; i++) {
+      const date = recKind ? addRecurrence(service_date, recKind, i) : service_date;
+      const paidAt = paidNum ? new Date().toISOString() : null;
+      const info = insert.run(client_id, category, description || null, date, time, priceNum, paidNum, paidAt);
+      ids.push(info.lastInsertRowid);
+    }
+    return ids;
+  });
+
+  const ids = insertMany();
+  const rows = db.prepare(`SELECT * FROM services WHERE id IN (${ids.map(() => '?').join(',')})`).all(...ids);
+  res.status(201).json(count === 1 ? rows[0] : { created: rows.length, services: rows });
 });
 
 router.put('/:id', (req, res) => {
