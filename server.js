@@ -67,6 +67,26 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/health', (req, res) => res.json({ ok: true }));
 
+app.get('/api/diagnostics', requireAuth, (req, res) => {
+  const fs = require('fs');
+  const path = require('path');
+  const dbPath = process.env.DB_PATH || path.join(__dirname, 'data', 'crm.db');
+  let size = null, exists = false, writable = false;
+  try { const st = fs.statSync(dbPath); exists = true; size = st.size; } catch (e) {}
+  try { fs.accessSync(path.dirname(dbPath), fs.constants.W_OK); writable = true; } catch (e) {}
+  const clients = db.prepare('SELECT COUNT(*) AS n FROM clients').get().n;
+  const services = db.prepare('SELECT COUNT(*) AS n FROM services').get().n;
+  res.json({
+    db_path: dbPath,
+    db_file_exists: exists,
+    db_file_bytes: size,
+    db_dir_writable: writable,
+    warning: dbPath.startsWith('/data/') ? null : '⚠ DB_PATH no apunta a /data/ — los datos NO son persistentes',
+    clients,
+    services
+  });
+});
+
 app.use((err, req, res, next) => {
   console.error(err);
   res.status(500).json({ error: err.message || 'Error interno' });
