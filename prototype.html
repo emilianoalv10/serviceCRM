@@ -113,6 +113,11 @@
         <div class="mb-2"><label class="form-label">Teléfono</label><input class="form-control" name="phone" /></div>
         <div class="mb-2"><label class="form-label">Email</label><input class="form-control" name="email" type="email" /></div>
         <div class="mb-2"><label class="form-label">Dirección</label><input class="form-control" name="address" /></div>
+        <div class="mb-2">
+          <label class="form-label">Ubicación (link de Google Maps)</label>
+          <input class="form-control" name="map_url" type="url" placeholder="https://maps.app.goo.gl/..." />
+          <div class="form-text">En Google Maps: Compartir → Copiar enlace.</div>
+        </div>
         <div class="mb-2"><label class="form-label">Notas</label><textarea class="form-control" name="notes" rows="2"></textarea></div>
       </div>
       <div class="modal-footer">
@@ -326,7 +331,7 @@
       const c = state.clients.find(x => x.id === id); if (!c) return;
       const f = $('#clientForm');
       f.id.value = c.id; f.name.value = c.name||''; f.phone.value = c.phone||'';
-      f.email.value = c.email||''; f.address.value = c.address||''; f.notes.value = c.notes||'';
+      f.email.value = c.email||''; f.address.value = c.address||''; f.map_url.value = c.map_url||''; f.notes.value = c.notes||'';
       $('#clientModalTitle').textContent = 'Editar cliente';
       clientModal.show();
     }
@@ -340,11 +345,12 @@
       e.preventDefault();
       const f = e.target; const data = Object.fromEntries(new FormData(f));
       if (!data.name.trim()) return;
+      const mapUrl = data.map_url && /^https?:\/\//i.test(data.map_url.trim()) ? data.map_url.trim() : null;
       if (data.id) {
         const c = state.clients.find(x => x.id === Number(data.id));
-        Object.assign(c, { name: data.name.trim(), phone: data.phone||null, email: data.email||null, address: data.address||null, notes: data.notes||null });
+        Object.assign(c, { name: data.name.trim(), phone: data.phone||null, email: data.email||null, address: data.address||null, map_url: mapUrl, notes: data.notes||null });
       } else {
-        state.clients.push({ id: nextId('client'), name: data.name.trim(), phone: data.phone||null, email: data.email||null, address: data.address||null, notes: data.notes||null, created_at: new Date().toISOString() });
+        state.clients.push({ id: nextId('client'), name: data.name.trim(), phone: data.phone||null, email: data.email||null, address: data.address||null, map_url: mapUrl, notes: data.notes||null, created_at: new Date().toISOString() });
       }
       save(); clientModal.hide(); renderAll();
     });
@@ -363,6 +369,7 @@
           ${c.email ? '✉️ '+escapeHtml(c.email)+' · ' : ''}
           ${c.address ? '📍 '+escapeHtml(c.address) : ''}
         </div>
+        ${c.map_url ? `<div class="mb-3"><a href="${escapeHtml(c.map_url)}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">🗺️ Ver en Google Maps</a></div>` : ''}
         ${c.notes ? `<div class="alert alert-light small">${escapeHtml(c.notes)}</div>` : ''}
         <div class="row g-2 mb-3">
           <div class="col"><div class="card p-2"><div class="small text-muted">Total</div><div class="money fw-bold">${money(total)}</div></div></div>

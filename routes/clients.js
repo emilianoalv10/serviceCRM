@@ -37,24 +37,32 @@ router.get('/:id', (req, res) => {
   res.json({ ...client, services });
 });
 
+function sanitizeMapUrl(u) {
+  if (!u) return null;
+  const s = String(u).trim();
+  if (!s) return null;
+  if (!/^https?:\/\//i.test(s)) return null;
+  return s;
+}
+
 router.post('/', (req, res) => {
-  const { name, phone, email, address, notes } = req.body;
+  const { name, phone, email, address, map_url, notes } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'El nombre es obligatorio' });
   const info = db.prepare(`
-    INSERT INTO clients (name, phone, email, address, notes)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(name.trim(), phone || null, email || null, address || null, notes || null);
+    INSERT INTO clients (name, phone, email, address, map_url, notes)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(name.trim(), phone || null, email || null, address || null, sanitizeMapUrl(map_url), notes || null);
   const created = db.prepare('SELECT * FROM clients WHERE id = ?').get(info.lastInsertRowid);
   res.status(201).json(created);
 });
 
 router.put('/:id', (req, res) => {
-  const { name, phone, email, address, notes } = req.body;
+  const { name, phone, email, address, map_url, notes } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'El nombre es obligatorio' });
   const info = db.prepare(`
-    UPDATE clients SET name = ?, phone = ?, email = ?, address = ?, notes = ?
+    UPDATE clients SET name = ?, phone = ?, email = ?, address = ?, map_url = ?, notes = ?
     WHERE id = ?
-  `).run(name.trim(), phone || null, email || null, address || null, notes || null, req.params.id);
+  `).run(name.trim(), phone || null, email || null, address || null, sanitizeMapUrl(map_url), notes || null, req.params.id);
   if (info.changes === 0) return res.status(404).json({ error: 'No encontrado' });
   const updated = db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id);
   res.json(updated);

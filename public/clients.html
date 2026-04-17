@@ -54,6 +54,11 @@
             <div class="mb-2"><label class="form-label">Teléfono</label><input class="form-control" name="phone" /></div>
             <div class="mb-2"><label class="form-label">Email</label><input class="form-control" name="email" type="email" /></div>
             <div class="mb-2"><label class="form-label">Dirección</label><input class="form-control" name="address" /></div>
+            <div class="mb-2">
+              <label class="form-label">Ubicación (link de Google Maps)</label>
+              <input class="form-control" name="map_url" type="url" placeholder="https://maps.app.goo.gl/..." />
+              <div class="form-text">En Google Maps: botón Compartir → Copiar enlace, y pegalo acá.</div>
+            </div>
             <div class="mb-2"><label class="form-label">Notas</label><textarea class="form-control" name="notes" rows="2"></textarea></div>
           </div>
           <div class="modal-footer">
@@ -131,6 +136,7 @@
       form.phone.value = c.phone || '';
       form.email.value = c.email || '';
       form.address.value = c.address || '';
+      form.map_url.value = c.map_url || '';
       form.notes.value = c.notes || '';
       document.getElementById('modalTitle').textContent = 'Editar cliente';
       modal.show();
@@ -167,6 +173,7 @@
           ${c.email ? '✉️ ' + escapeHtml(c.email) + ' · ' : ''}
           ${c.address ? '📍 ' + escapeHtml(c.address) : ''}
         </div>
+        ${c.map_url ? `<div class="mb-3"><a href="${escapeHtml(c.map_url)}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">🗺️ Ver en Google Maps</a></div>` : ''}
         ${c.notes ? `<div class="alert alert-light small">${escapeHtml(c.notes)}</div>` : ''}
         <div class="row g-2 mb-3">
           <div class="col"><div class="card p-2"><div class="label small text-muted">Total facturado</div><div class="money fw-bold">${money(total)}</div></div></div>

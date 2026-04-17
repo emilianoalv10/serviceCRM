@@ -17,6 +17,7 @@ db.exec(`
     phone TEXT,
     email TEXT,
     address TEXT,
+    map_url TEXT,
     notes TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
@@ -38,5 +39,11 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_services_date ON services(service_date);
   CREATE INDEX IF NOT EXISTS idx_services_category ON services(category);
 `);
+
+// Migraciones idempotentes para bases ya existentes
+const clientColumns = db.prepare('PRAGMA table_info(clients)').all().map(r => r.name);
+if (!clientColumns.includes('map_url')) {
+  db.exec('ALTER TABLE clients ADD COLUMN map_url TEXT');
+}
 
 module.exports = db;
