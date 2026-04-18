@@ -46,6 +46,7 @@ db.exec(`
     work_requested TEXT,
     amount REAL NOT NULL DEFAULT 0,
     quote_date TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
@@ -61,6 +62,11 @@ if (!clientColumns.includes('map_url')) {
 const serviceColumns = db.prepare('PRAGMA table_info(services)').all().map(r => r.name);
 if (!serviceColumns.includes('service_time')) {
   db.exec('ALTER TABLE services ADD COLUMN service_time TEXT');
+}
+
+const quoteColumns = db.prepare('PRAGMA table_info(quotes)').all().map(r => r.name);
+if (!quoteColumns.includes('status')) {
+  db.exec("ALTER TABLE quotes ADD COLUMN status TEXT NOT NULL DEFAULT 'pending'");
 }
 
 module.exports = db;

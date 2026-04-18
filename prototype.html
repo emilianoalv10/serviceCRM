@@ -149,16 +149,24 @@
         <h1 class="h3 mb-0">Presupuestos</h1>
         <button class="btn btn-primary" id="newQuoteBtn">+ Nuevo presupuesto</button>
       </div>
-      <div class="mb-3"><input id="quoteSearch" class="form-control" placeholder="Buscar…" /></div>
+      <div class="row g-2 mb-3">
+        <div class="col-md-8"><input id="quoteSearch" class="form-control" placeholder="Buscar…" /></div>
+        <div class="col-md-4"><select id="fQuoteStatus" class="form-select">
+          <option value="">Estado: todos</option>
+          <option value="pending">Pendientes</option>
+          <option value="approved">Aprobados</option>
+          <option value="rejected">Rechazados</option>
+        </select></div>
+      </div>
       <div class="card p-0"><div class="table-responsive"><table class="table table-hover mb-0">
         <thead class="table-light"><tr>
-          <th>Fecha</th><th>Cliente potencial</th><th>Trabajo solicitado</th><th class="text-end">Presupuesto</th><th></th>
+          <th>Fecha</th><th>Cliente potencial</th><th>Trabajo solicitado</th><th class="text-end">Presupuesto</th><th>Estado</th><th></th>
         </tr></thead>
         <tbody id="quotes-body"></tbody>
         <tfoot class="table-light"><tr>
           <th colspan="3" class="text-end">Total presupuestado:</th>
           <th class="text-end money" id="quotesTotal">$0</th>
-          <th></th>
+          <th colspan="2" class="small text-muted" id="quotesBreakdown"></th>
         </tr></tfoot>
       </table></div></div>
     </section>
@@ -247,9 +255,16 @@
         <input type="hidden" name="id" />
         <div class="mb-2"><label class="form-label">Cliente potencial *</label><input class="form-control" name="prospect_name" required /></div>
         <div class="mb-2"><label class="form-label">Trabajo solicitado</label><textarea class="form-control" name="work_requested" rows="3"></textarea></div>
-        <div class="row g-2">
+        <div class="row g-2 mb-2">
           <div class="col-7"><label class="form-label">Fecha *</label><input class="form-control" type="date" name="quote_date" required /></div>
-          <div class="col-5"><label class="form-label">Presupuesto enviado</label><input class="form-control" type="number" step="0.01" min="0" name="amount" /></div>
+          <div class="col-5"><label class="form-label">Presupuesto</label><input class="form-control" type="number" step="0.01" min="0" name="amount" /></div>
+        </div>
+        <div class="mb-2"><label class="form-label">Estado</label>
+          <select class="form-select" name="status">
+            <option value="pending">Pendiente</option>
+            <option value="approved">Aprobado</option>
+            <option value="rejected">Rechazado</option>
+          </select>
         </div>
       </div>
       <div class="modal-footer">
@@ -324,13 +339,13 @@
       }));
 
       const sampleQuotes = [
-        { name: 'Roberto Suárez', work: 'Pintura completa de oficina (3 ambientes)', date: daysAgo(2),  amount: 220000 },
-        { name: 'Familia Acosta', work: 'Mudanza con flete grande, sábado a la mañana', date: daysAgo(7), amount: 90000 },
-        { name: 'Inmobiliaria del Sur', work: 'Limpieza profunda casa 4 ambientes para entrega', date: daysAgo(14), amount: 75000 }
+        { name: 'Roberto Suárez', work: 'Pintura completa de oficina (3 ambientes)', date: daysAgo(2),  amount: 220000, status: 'pending' },
+        { name: 'Familia Acosta', work: 'Mudanza con flete grande, sábado a la mañana', date: daysAgo(7), amount: 90000, status: 'approved' },
+        { name: 'Inmobiliaria del Sur', work: 'Limpieza profunda casa 4 ambientes para entrega', date: daysAgo(14), amount: 75000, status: 'rejected' }
       ];
       sampleQuotes.forEach(q => state.quotes.push({
         id: nextId('quote'), prospect_name: q.name, work_requested: q.work,
-        amount: q.amount, quote_date: q.date, created_at: new Date().toISOString()
+        amount: q.amount, quote_date: q.date, status: q.status, created_at: new Date().toISOString()
       }));
 
       save();
@@ -600,6 +615,9 @@
       const f = $('#svcForm'); f.reset(); f.id.value = '';
       f.service_date.value = opts.date || todayISO();
       if (opts.clientId) f.client_id.value = opts.clientId;
+      if (opts.category) f.category.value = opts.category;
+      if (opts.description != null) f.description.value = opts.description;
+      if (opts.price != null) f.price.value = opts.price;
       f.recurrence.value = ''; f.occurrences.value = 4;
       $('#svcModalTitle').textContent = 'Nuevo servicio';
       renderDaySchedule(); renderRecurrencePreview();
@@ -776,38 +794,60 @@
 
     // ---------- quotes ----------
     const quoteModal = new bootstrap.Modal($('#quoteModal'));
+    const QSTATUS_LABEL = { pending: 'Pendiente', approved: 'Aprobado', rejected: 'Rechazado' };
+    const QSTATUS_COLOR = { pending: 'secondary', approved: 'success', rejected: 'danger' };
 
     function renderQuotes() {
       const q = $('#quoteSearch').value.trim().toLowerCase();
+      const fStatus = $('#fQuoteStatus').value;
       const rows = state.quotes
         .filter(r => !q || (r.prospect_name + ' ' + (r.work_requested||'')).toLowerCase().includes(q))
+        .filter(r => !fStatus || (r.status || 'pending') === fStatus)
         .slice()
         .sort((a, b) => b.quote_date.localeCompare(a.quote_date) || b.id - a.id);
       const body = $('#quotes-body');
       if (!rows.length) {
-        body.innerHTML = '<tr><td colspan="5" class="text-muted text-center p-4">Sin presupuestos.</td></tr>';
-        $('#quotesTotal').textContent = money(0);
-        return;
+        body.innerHTML = '<tr><td colspan="6" class="text-muted text-center p-4">Sin presupuestos.</td></tr>';
+        $('#quotesTotal').textContent = money(0); $('#quotesBreakdown').textContent = ''; return;
       }
-      body.innerHTML = rows.map(r => `
-        <tr>
+      body.innerHTML = rows.map(r => {
+        const st = r.status || 'pending';
+        return `<tr>
           <td>${fmtDate(r.quote_date)}</td>
           <td>${escapeHtml(r.prospect_name)}</td>
           <td><span class="text-muted">${escapeHtml(r.work_requested||'')}</span></td>
           <td class="text-end money">${money(r.amount)}</td>
+          <td>
+            <div class="btn-group btn-group-sm">
+              <button type="button" class="btn btn-${QSTATUS_COLOR[st]} dropdown-toggle" data-bs-toggle="dropdown">${QSTATUS_LABEL[st]}</button>
+              <ul class="dropdown-menu">
+                <li><a class="dropdown-item set-qstatus" href="#" data-id="${r.id}" data-status="pending">Pendiente</a></li>
+                <li><a class="dropdown-item set-qstatus" href="#" data-id="${r.id}" data-status="approved">Aprobado</a></li>
+                <li><a class="dropdown-item set-qstatus" href="#" data-id="${r.id}" data-status="rejected">Rechazado</a></li>
+              </ul>
+            </div>
+          </td>
           <td class="text-end">
+            ${st === 'approved' ? `<button class="btn btn-sm btn-primary convert-quote" data-id="${r.id}">→ Crear servicio</button>` : ''}
             <button class="btn btn-sm btn-outline-secondary edit-quote" data-id="${r.id}">Editar</button>
             <button class="btn btn-sm btn-outline-danger del-quote" data-id="${r.id}">Borrar</button>
           </td>
-        </tr>`).join('');
+        </tr>`;
+      }).join('');
       $$('.edit-quote', body).forEach(b => b.addEventListener('click', () => openQuoteEdit(Number(b.dataset.id))));
       $$('.del-quote', body).forEach(b => b.addEventListener('click', () => delQuote(Number(b.dataset.id))));
-      $('#quotesTotal').textContent = money(rows.reduce((a, r) => a + r.amount, 0));
+      $$('.set-qstatus', body).forEach(a => a.addEventListener('click', (e) => { e.preventDefault(); setQuoteStatus(Number(a.dataset.id), a.dataset.status); }));
+      $$('.convert-quote', body).forEach(b => b.addEventListener('click', () => convertQuote(Number(b.dataset.id))));
+      const total = rows.reduce((a, r) => a + r.amount, 0);
+      const approved = rows.filter(r => (r.status||'pending') === 'approved').reduce((a,r) => a + r.amount, 0);
+      const pending = rows.filter(r => (r.status||'pending') === 'pending').reduce((a,r) => a + r.amount, 0);
+      $('#quotesTotal').textContent = money(total);
+      $('#quotesBreakdown').textContent = `Aprobados: ${money(approved)} · Pendientes: ${money(pending)}`;
     }
 
     function openQuoteNew() {
       const f = $('#quoteForm'); f.reset(); f.id.value = '';
-      f.quote_date.value = todayISO();
+      f.quote_date.value = todayISO(); f.status.value = 'pending';
       $('#quoteModalTitle').textContent = 'Nuevo presupuesto';
       quoteModal.show();
     }
@@ -817,6 +857,7 @@
       f.id.value = q.id; f.prospect_name.value = q.prospect_name;
       f.work_requested.value = q.work_requested || '';
       f.amount.value = q.amount; f.quote_date.value = q.quote_date;
+      f.status.value = q.status || 'pending';
       $('#quoteModalTitle').textContent = 'Editar presupuesto';
       quoteModal.show();
     }
@@ -824,6 +865,21 @@
       if (!confirm('¿Borrar este presupuesto?')) return;
       state.quotes = state.quotes.filter(q => q.id !== id);
       save(); renderQuotes();
+    }
+    function setQuoteStatus(id, status) {
+      const q = state.quotes.find(x => x.id === id); if (!q) return;
+      q.status = status; save(); renderQuotes();
+    }
+    function convertQuote(id) {
+      const q = state.quotes.find(x => x.id === id); if (!q) return;
+      let client = state.clients.find(c => c.name.toLowerCase() === q.prospect_name.trim().toLowerCase());
+      if (!client) {
+        client = { id: nextId('client'), name: q.prospect_name.trim(), phone: null, email: null, address: null, map_url: null, notes: null, created_at: new Date().toISOString() };
+        state.clients.push(client);
+        save();
+      }
+      fillSelects();
+      openSvcNew({ clientId: client.id, description: q.work_requested || '', price: q.amount });
     }
     $('#quoteForm').addEventListener('submit', e => {
       e.preventDefault();
@@ -833,7 +889,8 @@
         prospect_name: data.prospect_name.trim(),
         work_requested: data.work_requested || null,
         amount: Number(data.amount || 0),
-        quote_date: data.quote_date
+        quote_date: data.quote_date,
+        status: ['pending','approved','rejected'].includes(data.status) ? data.status : 'pending'
       };
       if (data.id) {
         const q = state.quotes.find(x => x.id === Number(data.id));
@@ -846,6 +903,7 @@
     $('#newQuoteBtn').addEventListener('click', openQuoteNew);
     let quoteSearchT;
     $('#quoteSearch').addEventListener('input', () => { clearTimeout(quoteSearchT); quoteSearchT = setTimeout(renderQuotes, 200); });
+    $('#fQuoteStatus').addEventListener('change', renderQuotes);
 
     // ---------- demo banner actions ----------
     $('#resetDemo').addEventListener('click', () => {

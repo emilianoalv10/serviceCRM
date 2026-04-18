@@ -45,6 +45,20 @@ function sanitizeMapUrl(u) {
   return s;
 }
 
+router.post('/find-or-create', (req, res) => {
+  const { name } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ error: 'El nombre es obligatorio' });
+  const trimmed = name.trim();
+  let client = db.prepare('SELECT * FROM clients WHERE LOWER(name) = LOWER(?) LIMIT 1').get(trimmed);
+  let created = false;
+  if (!client) {
+    const info = db.prepare('INSERT INTO clients (name) VALUES (?)').run(trimmed);
+    client = db.prepare('SELECT * FROM clients WHERE id = ?').get(info.lastInsertRowid);
+    created = true;
+  }
+  res.json({ client, created });
+});
+
 router.post('/', (req, res) => {
   const { name, phone, email, address, map_url, notes } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'El nombre es obligatorio' });

@@ -16,8 +16,16 @@
       <button class="btn btn-primary" id="newBtn">+ Nuevo presupuesto</button>
     </div>
 
-    <div class="mb-3">
-      <input id="search" class="form-control" placeholder="Buscar por nombre o trabajo…" />
+    <div class="row g-2 mb-3">
+      <div class="col-md-8"><input id="search" class="form-control" placeholder="Buscar por nombre o trabajo…" /></div>
+      <div class="col-md-4">
+        <select id="f-status" class="form-select">
+          <option value="">Estado: todos</option>
+          <option value="pending">Pendientes</option>
+          <option value="approved">Aprobados</option>
+          <option value="rejected">Rechazados</option>
+        </select>
+      </div>
     </div>
 
     <div class="card p-0">
@@ -29,6 +37,7 @@
               <th>Cliente potencial</th>
               <th>Trabajo solicitado</th>
               <th class="text-end">Presupuesto</th>
+              <th>Estado</th>
               <th></th>
             </tr>
           </thead>
@@ -37,7 +46,7 @@
             <tr>
               <th colspan="3" class="text-end">Total presupuestado:</th>
               <th class="text-end money" id="totalSum">$0</th>
-              <th></th>
+              <th colspan="2" class="small text-muted" id="totalBreakdown"></th>
             </tr>
           </tfoot>
         </table>
@@ -45,6 +54,7 @@
     </div>
   </main>
 
+  <!-- Modal presupuesto -->
   <div class="modal fade" id="quoteModal" tabindex="-1">
     <div class="modal-dialog">
       <div class="modal-content">
@@ -63,15 +73,91 @@
               <label class="form-label">Trabajo solicitado</label>
               <textarea class="form-control" name="work_requested" rows="3" placeholder="Ej: Pintura de living + comedor, dos manos, color a definir"></textarea>
             </div>
-            <div class="row g-2">
+            <div class="row g-2 mb-2">
               <div class="col-7">
                 <label class="form-label">Fecha *</label>
                 <input class="form-control" type="date" name="quote_date" required />
               </div>
               <div class="col-5">
-                <label class="form-label">Presupuesto enviado</label>
+                <label class="form-label">Presupuesto</label>
                 <input class="form-control" type="number" step="0.01" min="0" name="amount" />
               </div>
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Estado</label>
+              <select class="form-select" name="status">
+                <option value="pending">Pendiente</option>
+                <option value="approved">Aprobado</option>
+                <option value="rejected">Rechazado</option>
+              </select>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button class="btn btn-primary" type="submit">Guardar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal servicio (reusable via ServiceForm) -->
+  <div class="modal fade" id="svcModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form id="svcForm">
+          <div class="modal-header">
+            <h5 class="modal-title" id="svcModalTitle">Nuevo servicio</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" name="id" />
+            <div class="mb-2">
+              <label class="form-label">Cliente *</label>
+              <select class="form-select" name="client_id" required id="clientSelect"></select>
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Rubro *</label>
+              <select class="form-select" name="category" required id="categorySelect"></select>
+            </div>
+            <div class="row g-2 mb-2">
+              <div class="col-7">
+                <label class="form-label">Fecha *</label>
+                <input class="form-control" type="date" name="service_date" required />
+              </div>
+              <div class="col-5">
+                <label class="form-label">Hora</label>
+                <input class="form-control" type="time" name="service_time" />
+              </div>
+            </div>
+            <div id="daySchedule" class="mb-2"></div>
+            <div class="row g-2 mb-2" id="recurrenceRow">
+              <div class="col-7">
+                <label class="form-label">Repetir</label>
+                <select class="form-select" name="recurrence">
+                  <option value="">No repetir</option>
+                  <option value="weekly">Semanal</option>
+                  <option value="biweekly">Cada 2 semanas</option>
+                  <option value="monthly">Mensual</option>
+                </select>
+              </div>
+              <div class="col-5">
+                <label class="form-label">Cantidad</label>
+                <input class="form-control" type="number" name="occurrences" min="1" max="52" value="4" />
+              </div>
+              <div class="col-12"><div id="recurrencePreview" class="small text-muted"></div></div>
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Descripción</label>
+              <textarea class="form-control" name="description" rows="2"></textarea>
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Precio</label>
+              <input class="form-control" type="number" step="0.01" min="0" name="price" />
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="paid" id="paidChk" value="1" />
+              <label class="form-check-label" for="paidChk">Ya está pagado</label>
             </div>
           </div>
           <div class="modal-footer">
@@ -85,8 +171,12 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/js/common.js"></script>
+  <script src="/js/service-form.js"></script>
   <script>
     renderNav('quotes');
+
+    const STATUS_LABEL = { pending: 'Pendiente', approved: 'Aprobado', rejected: 'Rechazado' };
+    const STATUS_COLOR = { pending: 'secondary', approved: 'success', rejected: 'danger' };
 
     const modal = new bootstrap.Modal(document.getElementById('quoteModal'));
     const form = document.getElementById('quoteForm');
@@ -95,17 +185,21 @@
       form.reset();
       form.id.value = '';
       form.quote_date.value = todayISO();
+      form.status.value = 'pending';
       document.getElementById('modalTitle').textContent = 'Nuevo presupuesto';
       modal.show();
     });
 
     async function load() {
       const q = document.getElementById('search').value.trim();
-      const rows = await api('/api/quotes' + (q ? `?q=${encodeURIComponent(q)}` : ''));
+      const status = document.getElementById('f-status').value;
+      const all = await api('/api/quotes' + (q ? `?q=${encodeURIComponent(q)}` : ''));
+      const rows = status ? all.filter(r => r.status === status) : all;
       const body = document.getElementById('quotes-body');
       if (!rows.length) {
-        body.innerHTML = '<tr><td colspan="5" class="text-muted text-center p-4">Sin presupuestos.</td></tr>';
+        body.innerHTML = '<tr><td colspan="6" class="text-muted text-center p-4">Sin presupuestos.</td></tr>';
         document.getElementById('totalSum').textContent = money(0);
+        document.getElementById('totalBreakdown').textContent = '';
         return;
       }
       body.innerHTML = rows.map(q => `
@@ -114,15 +208,38 @@
           <td>${escapeHtml(q.prospect_name)}</td>
           <td><span class="text-muted">${escapeHtml(q.work_requested || '')}</span></td>
           <td class="text-end money">${money(q.amount)}</td>
+          <td>
+            <div class="btn-group btn-group-sm">
+              <button type="button" class="btn btn-${STATUS_COLOR[q.status]} dropdown-toggle" data-bs-toggle="dropdown">
+                ${STATUS_LABEL[q.status]}
+              </button>
+              <ul class="dropdown-menu">
+                <li><a class="dropdown-item set-status" href="#" data-id="${q.id}" data-status="pending">Pendiente</a></li>
+                <li><a class="dropdown-item set-status" href="#" data-id="${q.id}" data-status="approved">Aprobado</a></li>
+                <li><a class="dropdown-item set-status" href="#" data-id="${q.id}" data-status="rejected">Rechazado</a></li>
+              </ul>
+            </div>
+          </td>
           <td class="text-end">
+            ${q.status === 'approved' ? `<button class="btn btn-sm btn-primary convert" data-id="${q.id}">→ Crear servicio</button>` : ''}
             <button class="btn btn-sm btn-outline-secondary edit" data-id="${q.id}">Editar</button>
             <button class="btn btn-sm btn-outline-danger del" data-id="${q.id}">Borrar</button>
           </td>
         </tr>
       `).join('');
+
       body.querySelectorAll('.edit').forEach(b => b.addEventListener('click', () => openEdit(b.dataset.id)));
       body.querySelectorAll('.del').forEach(b => b.addEventListener('click', () => del(b.dataset.id)));
-      document.getElementById('totalSum').textContent = money(rows.reduce((a, r) => a + r.amount, 0));
+      body.querySelectorAll('.set-status').forEach(a => a.addEventListener('click', (e) => {
+        e.preventDefault(); setStatus(a.dataset.id, a.dataset.status);
+      }));
+      body.querySelectorAll('.convert').forEach(b => b.addEventListener('click', () => convert(Number(b.dataset.id))));
+
+      const total = rows.reduce((a, r) => a + r.amount, 0);
+      const approved = rows.filter(r => r.status === 'approved').reduce((a, r) => a + r.amount, 0);
+      const pending = rows.filter(r => r.status === 'pending').reduce((a, r) => a + r.amount, 0);
+      document.getElementById('totalSum').textContent = money(total);
+      document.getElementById('totalBreakdown').textContent = `Aprobados: ${money(approved)} · Pendientes: ${money(pending)}`;
     }
 
     async function openEdit(id) {
@@ -132,6 +249,7 @@
       form.work_requested.value = q.work_requested || '';
       form.amount.value = q.amount;
       form.quote_date.value = q.quote_date;
+      form.status.value = q.status || 'pending';
       document.getElementById('modalTitle').textContent = 'Editar presupuesto';
       modal.show();
     }
@@ -140,6 +258,27 @@
       if (!confirm('¿Borrar este presupuesto?')) return;
       await api('/api/quotes/' + id, { method: 'DELETE' });
       load();
+    }
+
+    async function setStatus(id, status) {
+      await api(`/api/quotes/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+      load();
+    }
+
+    async function convert(id) {
+      const q = await api('/api/quotes/' + id);
+      const r = await api('/api/clients/find-or-create', {
+        method: 'POST', body: JSON.stringify({ name: q.prospect_name })
+      });
+      if (r.created) {
+        // no bloqueamos; solo avisamos
+        console.log('Cliente creado:', r.client.name);
+      }
+      await ServiceForm.openNew({
+        clientId: r.client.id,
+        description: q.work_requested || '',
+        price: q.amount
+      });
     }
 
     form.addEventListener('submit', async (e) => {
@@ -161,7 +300,9 @@
 
     let t;
     document.getElementById('search').addEventListener('input', () => { clearTimeout(t); t = setTimeout(load, 250); });
+    document.getElementById('f-status').addEventListener('change', load);
 
+    ServiceForm.init({ onSaved: () => {} });
     load().catch(err => alert(err.message));
   </script>
 </body>

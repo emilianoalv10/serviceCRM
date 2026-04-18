@@ -99,12 +99,15 @@ window.ServiceForm = (() => {
     `;
   }
 
-  async function openNew({ date, clientId } = {}) {
+  async function openNew({ date, clientId, description, price, category } = {}) {
     await refreshAll();
     form.reset();
     form.id.value = '';
     form.service_date.value = date || new Date().toISOString().slice(0, 10);
     if (clientId) form.client_id.value = clientId;
+    if (category) form.category.value = category;
+    if (description != null) form.description.value = description;
+    if (price != null) form.price.value = price;
     if (form.recurrence) form.recurrence.value = '';
     if (form.occurrences) form.occurrences.value = 4;
     document.getElementById('svcModalTitle').textContent = 'Nuevo servicio';
