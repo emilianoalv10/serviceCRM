@@ -113,6 +113,7 @@ window.ServiceForm = (() => {
     document.getElementById('svcModalTitle').textContent = 'Nuevo servicio';
     renderDaySchedule();
     renderRecurrencePreview();
+    renderPhotos(null);
     modal.show();
   }
 
@@ -130,7 +131,79 @@ window.ServiceForm = (() => {
     document.getElementById('svcModalTitle').textContent = 'Editar servicio';
     renderDaySchedule();
     renderRecurrencePreview();
+    renderPhotos(s);
     modal.show();
+  }
+
+  function renderPhotos(service) {
+    const box = document.getElementById('photoSection');
+    if (!box) return;
+    box.style.display = '';
+    if (!service || !service.id) {
+      box.innerHTML = `<hr class="my-3" /><div class="small text-muted">📷 Guardá primero el servicio para poder adjuntar fotos del <strong>antes</strong> y <strong>después</strong>.</div>`;
+      return;
+    }
+    const before = (service.photos || []).filter(p => p.kind === 'before');
+    const after = (service.photos || []).filter(p => p.kind === 'after');
+    const isCompleted = !!service.completed;
+    box.innerHTML = `
+      <hr class="my-3" />
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <strong>Estado del trabajo</strong>
+        <button type="button" class="btn btn-sm ${isCompleted ? 'btn-success' : 'btn-outline-success'}" id="toggleCompletedBtn">
+          ${isCompleted ? '✓ Realizado' : 'Marcar como realizado'}
+        </button>
+      </div>
+      <div class="mb-3">
+        <label class="form-label small text-muted">Fotos ANTES</label>
+        ${renderPhotoGrid(before)}
+        <input type="file" class="form-control form-control-sm mt-2" accept="image/*" multiple id="beforeUpload" />
+      </div>
+      <div class="mb-3" style="${isCompleted ? '' : 'opacity:.5; pointer-events:none;'}">
+        <label class="form-label small text-muted">Fotos DESPUÉS ${!isCompleted ? '<em class="text-warning">(disponible al marcar como realizado)</em>' : ''}</label>
+        ${renderPhotoGrid(after)}
+        <input type="file" class="form-control form-control-sm mt-2" accept="image/*" multiple id="afterUpload" ${isCompleted ? '' : 'disabled'} />
+      </div>
+    `;
+    document.getElementById('toggleCompletedBtn').addEventListener('click', async () => {
+      await api(`/api/services/${service.id}/toggle-completed`, { method: 'POST' });
+      const fresh = await api('/api/services/' + service.id);
+      renderPhotos(fresh);
+    });
+    document.getElementById('beforeUpload').addEventListener('change', (e) => uploadPhotos(service.id, 'before', e.target.files));
+    if (isCompleted) document.getElementById('afterUpload').addEventListener('change', (e) => uploadPhotos(service.id, 'after', e.target.files));
+    box.querySelectorAll('.photo-del').forEach(b => b.addEventListener('click', () => deletePhoto(service.id, Number(b.dataset.id))));
+  }
+
+  function renderPhotoGrid(photos) {
+    if (!photos.length) return '<div class="small text-muted">— Sin fotos</div>';
+    return `<div class="d-flex flex-wrap gap-2">${photos.map(p => `
+      <div class="position-relative" style="width:96px;height:96px;">
+        <a href="/api/uploads/${p.filename}" target="_blank" rel="noopener">
+          <img src="/api/uploads/${p.filename}" style="width:96px;height:96px;object-fit:cover;border-radius:6px;border:1px solid #dee2e6;" />
+        </a>
+        <button type="button" class="btn btn-sm btn-danger position-absolute photo-del" data-id="${p.id}" style="top:-6px;right:-6px;padding:0 6px;line-height:1.2;border-radius:50%;" title="Borrar">×</button>
+      </div>
+    `).join('')}</div>`;
+  }
+
+  async function uploadPhotos(serviceId, kind, files) {
+    if (!files || !files.length) return;
+    const fd = new FormData();
+    Array.from(files).forEach(f => fd.append('photos', f));
+    try {
+      const r = await fetch(`/api/services/${serviceId}/photos?kind=${kind}`, { method: 'POST', body: fd });
+      if (!r.ok) throw new Error((await r.json()).error || 'Error al subir');
+      const fresh = await api('/api/services/' + serviceId);
+      renderPhotos(fresh);
+    } catch (err) { alert(err.message); }
+  }
+
+  async function deletePhoto(serviceId, photoId) {
+    if (!confirm('¿Borrar esta foto?')) return;
+    await api(`/api/services/${serviceId}/photos/${photoId}`, { method: 'DELETE' });
+    const fresh = await api('/api/services/' + serviceId);
+    renderPhotos(fresh);
   }
 
   async function onSubmit(e) {

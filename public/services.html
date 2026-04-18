@@ -43,7 +43,8 @@
               <th>Rubro</th>
               <th>Descripción</th>
               <th class="text-end">Precio</th>
-              <th>Estado</th>
+              <th>Trabajo</th>
+              <th>Pago</th>
               <th></th>
             </tr>
           </thead>
@@ -52,7 +53,7 @@
             <tr>
               <th colspan="5" class="text-end">Totales:</th>
               <th class="text-end money" id="totalFiltered">$0</th>
-              <th colspan="2" class="small text-muted" id="totalBreakdown"></th>
+              <th colspan="3" class="small text-muted" id="totalBreakdown"></th>
             </tr>
           </tfoot>
         </table>
@@ -117,6 +118,7 @@
               <input class="form-check-input" type="checkbox" name="paid" id="paidChk" value="1" />
               <label class="form-check-label" for="paidChk">Ya está pagado</label>
             </div>
+            <div id="photoSection"></div>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -163,7 +165,7 @@
       const rows = await api('/api/services' + (qs ? '?' + qs : ''));
       const body = document.getElementById('services-body');
       if (!rows.length) {
-        body.innerHTML = '<tr><td colspan="8" class="text-muted text-center p-4">Sin servicios.</td></tr>';
+        body.innerHTML = '<tr><td colspan="9" class="text-muted text-center p-4">Sin servicios.</td></tr>';
         document.getElementById('totalFiltered').textContent = money(0);
         document.getElementById('totalBreakdown').textContent = '';
         return;
@@ -177,6 +179,11 @@
           <td>${escapeHtml(s.description || '')}</td>
           <td class="text-end money">${money(s.price)}</td>
           <td>
+            <button class="btn btn-sm ${s.completed ? 'btn-success' : 'btn-outline-secondary'} toggle-done" data-id="${s.id}">
+              ${s.completed ? '✓ Realizado' : 'Agendado'}
+            </button>
+          </td>
+          <td>
             <button class="btn btn-sm ${s.paid ? 'btn-success' : 'btn-outline-warning'} toggle" data-id="${s.id}">
               ${s.paid ? 'Pagado' : 'Pendiente'}
             </button>
@@ -189,6 +196,7 @@
       `).join('');
 
       body.querySelectorAll('.toggle').forEach(b => b.addEventListener('click', () => togglePaid(b.dataset.id)));
+      body.querySelectorAll('.toggle-done').forEach(b => b.addEventListener('click', () => toggleDone(b.dataset.id)));
       body.querySelectorAll('.edit').forEach(b => b.addEventListener('click', () => ServiceForm.openEdit(Number(b.dataset.id))));
       body.querySelectorAll('.del').forEach(b => b.addEventListener('click', () => del(b.dataset.id)));
 
@@ -201,6 +209,11 @@
 
     async function togglePaid(id) {
       await api(`/api/services/${id}/toggle-paid`, { method: 'POST' });
+      load();
+    }
+
+    async function toggleDone(id) {
+      await api(`/api/services/${id}/toggle-completed`, { method: 'POST' });
       load();
     }
 

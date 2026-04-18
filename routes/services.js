@@ -1,9 +1,30 @@
 const express = require('express');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
 const db = require('../db');
 
 const router = express.Router();
 
 const CATEGORIES = ['Jardinería', 'Limpieza', 'Fletes', 'Pintura', 'Otro'];
+const UPLOADS_DIR = db.UPLOADS_DIR;
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, UPLOADS_DIR),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname || '').slice(0, 10).toLowerCase();
+    cb(null, crypto.randomBytes(16).toString('hex') + ext);
+  }
+});
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024, files: 20 },
+  fileFilter: (req, file, cb) => {
+    if (/^image\//.test(file.mimetype)) return cb(null, true);
+    cb(new Error('Solo se permiten imágenes'));
+  }
+});
 
 router.get('/categories', (req, res) => res.json(CATEGORIES));
 
@@ -68,6 +89,7 @@ router.get('/:id', (req, res) => {
     WHERE s.id = ?
   `).get(req.params.id);
   if (!row) return res.status(404).json({ error: 'No encontrado' });
+  row.photos = db.prepare('SELECT id, kind, filename, original_name, size, uploaded_at FROM service_photos WHERE service_id = ? ORDER BY uploaded_at ASC').all(req.params.id);
   res.json(row);
 });
 
@@ -139,9 +161,52 @@ router.post('/:id/toggle-paid', (req, res) => {
   res.json(db.prepare('SELECT * FROM services WHERE id = ?').get(req.params.id));
 });
 
+router.post('/:id/toggle-completed', (req, res) => {
+  const current = db.prepare('SELECT * FROM services WHERE id = ?').get(req.params.id);
+  if (!current) return res.status(404).json({ error: 'No encontrado' });
+  const newCompleted = current.completed ? 0 : 1;
+  const completedAt = newCompleted ? new Date().toISOString() : null;
+  db.prepare('UPDATE services SET completed = ?, completed_at = ? WHERE id = ?').run(newCompleted, completedAt, req.params.id);
+  res.json(db.prepare('SELECT * FROM services WHERE id = ?').get(req.params.id));
+});
+
+router.get('/:id/photos', (req, res) => {
+  const rows = db.prepare('SELECT id, kind, filename, original_name, size, uploaded_at FROM service_photos WHERE service_id = ? ORDER BY uploaded_at ASC').all(req.params.id);
+  res.json(rows);
+});
+
+router.post('/:id/photos', upload.array('photos', 20), (req, res) => {
+  const kind = req.query.kind === 'after' ? 'after' : 'before';
+  const service = db.prepare('SELECT * FROM services WHERE id = ?').get(req.params.id);
+  if (!service) {
+    (req.files || []).forEach(f => { try { fs.unlinkSync(f.path); } catch (e) {} });
+    return res.status(404).json({ error: 'Servicio no encontrado' });
+  }
+  if (kind === 'after' && !service.completed) {
+    (req.files || []).forEach(f => { try { fs.unlinkSync(f.path); } catch (e) {} });
+    return res.status(400).json({ error: 'Marcá el servicio como realizado antes de subir fotos "después"' });
+  }
+  const stmt = db.prepare(`INSERT INTO service_photos (service_id, kind, filename, original_name, size) VALUES (?, ?, ?, ?, ?)`);
+  const created = (req.files || []).map(f => {
+    const info = stmt.run(req.params.id, kind, f.filename, f.originalname, f.size);
+    return { id: info.lastInsertRowid, kind, filename: f.filename, original_name: f.originalname, size: f.size };
+  });
+  res.status(201).json(created);
+});
+
+router.delete('/:id/photos/:photoId', (req, res) => {
+  const photo = db.prepare('SELECT * FROM service_photos WHERE id = ? AND service_id = ?').get(req.params.photoId, req.params.id);
+  if (!photo) return res.status(404).json({ error: 'No encontrado' });
+  db.prepare('DELETE FROM service_photos WHERE id = ?').run(photo.id);
+  try { fs.unlinkSync(path.join(UPLOADS_DIR, photo.filename)); } catch (e) {}
+  res.json({ ok: true });
+});
+
 router.delete('/:id', (req, res) => {
+  const photos = db.prepare('SELECT filename FROM service_photos WHERE service_id = ?').all(req.params.id);
   const info = db.prepare('DELETE FROM services WHERE id = ?').run(req.params.id);
   if (info.changes === 0) return res.status(404).json({ error: 'No encontrado' });
+  photos.forEach(p => { try { fs.unlinkSync(path.join(UPLOADS_DIR, p.filename)); } catch (e) {} });
   res.json({ ok: true });
 });
 

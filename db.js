@@ -32,6 +32,8 @@ db.exec(`
     price REAL NOT NULL DEFAULT 0,
     paid INTEGER NOT NULL DEFAULT 0,
     paid_at TEXT,
+    completed INTEGER NOT NULL DEFAULT 0,
+    completed_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
   );
@@ -51,6 +53,18 @@ db.exec(`
   );
 
   CREATE INDEX IF NOT EXISTS idx_quotes_date ON quotes(quote_date);
+
+  CREATE TABLE IF NOT EXISTS service_photos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    service_id INTEGER NOT NULL,
+    kind TEXT NOT NULL CHECK(kind IN ('before','after')),
+    filename TEXT NOT NULL,
+    original_name TEXT,
+    size INTEGER,
+    uploaded_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS idx_photos_service ON service_photos(service_id);
 `);
 
 // Migraciones idempotentes para bases ya existentes
@@ -63,10 +77,20 @@ const serviceColumns = db.prepare('PRAGMA table_info(services)').all().map(r => 
 if (!serviceColumns.includes('service_time')) {
   db.exec('ALTER TABLE services ADD COLUMN service_time TEXT');
 }
+if (!serviceColumns.includes('completed')) {
+  db.exec('ALTER TABLE services ADD COLUMN completed INTEGER NOT NULL DEFAULT 0');
+}
+if (!serviceColumns.includes('completed_at')) {
+  db.exec('ALTER TABLE services ADD COLUMN completed_at TEXT');
+}
 
 const quoteColumns = db.prepare('PRAGMA table_info(quotes)').all().map(r => r.name);
 if (!quoteColumns.includes('status')) {
   db.exec("ALTER TABLE quotes ADD COLUMN status TEXT NOT NULL DEFAULT 'pending'");
 }
 
+const UPLOADS_DIR = path.join(dbDir, 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
 module.exports = db;
+module.exports.UPLOADS_DIR = UPLOADS_DIR;

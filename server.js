@@ -55,6 +55,17 @@ app.get('/login.html', (req, res) => {
 });
 
 app.use('/api', requireAuth);
+app.get('/api/uploads/:filename', (req, res) => {
+  const fs = require('fs');
+  const path = require('path');
+  const db = require('./db');
+  if (!/^[a-f0-9]{32}\.[a-z0-9]{1,10}$/i.test(req.params.filename)) {
+    return res.status(400).json({ error: 'Nombre inválido' });
+  }
+  const full = path.join(db.UPLOADS_DIR, req.params.filename);
+  if (!fs.existsSync(full)) return res.status(404).json({ error: 'No encontrado' });
+  res.sendFile(full);
+});
 app.use('/api/clients', require('./routes/clients'));
 app.use('/api/services', require('./routes/services'));
 app.use('/api/quotes', require('./routes/quotes'));
