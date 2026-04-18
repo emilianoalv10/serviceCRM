@@ -88,6 +88,19 @@ app.get('/api/diagnostics', requireAuth, (req, res) => {
   try { fs.accessSync(path.dirname(dbPath), fs.constants.W_OK); writable = true; } catch (e) {}
   const clients = db.prepare('SELECT COUNT(*) AS n FROM clients').get().n;
   const services = db.prepare('SELECT COUNT(*) AS n FROM services').get().n;
+  const photos = db.prepare('SELECT COUNT(*) AS n FROM service_photos').get().n;
+
+  const uploadsDir = db.UPLOADS_DIR;
+  let uploadsExists = false, uploadsFiles = 0, uploadsOrphans = 0, uploadsMissing = 0;
+  try { uploadsExists = fs.existsSync(uploadsDir); } catch (e) {}
+  let fileList = [];
+  if (uploadsExists) {
+    try { fileList = fs.readdirSync(uploadsDir); uploadsFiles = fileList.length; } catch (e) {}
+  }
+  const dbFilenames = new Set(db.prepare('SELECT filename FROM service_photos').all().map(r => r.filename));
+  uploadsOrphans = fileList.filter(f => !dbFilenames.has(f)).length;
+  uploadsMissing = [...dbFilenames].filter(f => !fileList.includes(f)).length;
+
   res.json({
     db_path: dbPath,
     db_file_exists: exists,
@@ -95,7 +108,13 @@ app.get('/api/diagnostics', requireAuth, (req, res) => {
     db_dir_writable: writable,
     warning: dbPath.startsWith('/data/') ? null : '⚠ DB_PATH no apunta a /data/ — los datos NO son persistentes',
     clients,
-    services
+    services,
+    photos_in_db: photos,
+    uploads_dir: uploadsDir,
+    uploads_dir_exists: uploadsExists,
+    uploads_files_on_disk: uploadsFiles,
+    uploads_orphan_files: uploadsOrphans,
+    uploads_missing_files: uploadsMissing
   });
 });
 

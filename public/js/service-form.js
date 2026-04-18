@@ -154,14 +154,22 @@ window.ServiceForm = (() => {
           ${isCompleted ? '✓ Realizado' : 'Marcar como realizado'}
         </button>
       </div>
+
       <div class="mb-3">
-        <label class="form-label small text-muted">Fotos ANTES</label>
-        ${renderPhotoGrid(before)}
+        <label class="form-label small text-muted d-flex justify-content-between align-items-center">
+          <span>Fotos ANTES <span class="badge text-bg-secondary ms-1">${before.length}</span></span>
+          <span class="upload-status text-info" data-kind="before"></span>
+        </label>
+        ${renderPhotoGrid(before, service.photos || [])}
         <input type="file" class="form-control form-control-sm mt-2" accept="image/*" multiple id="beforeUpload" />
       </div>
-      <div class="mb-3" style="${isCompleted ? '' : 'opacity:.5; pointer-events:none;'}">
-        <label class="form-label small text-muted">Fotos DESPUÉS ${!isCompleted ? '<em class="text-warning">(disponible al marcar como realizado)</em>' : ''}</label>
-        ${renderPhotoGrid(after)}
+
+      <div class="mb-3" style="${isCompleted ? '' : 'opacity:.5;'}">
+        <label class="form-label small text-muted d-flex justify-content-between align-items-center">
+          <span>Fotos DESPUÉS <span class="badge text-bg-secondary ms-1">${after.length}</span> ${!isCompleted ? '<em class="text-warning">(marcá como realizado)</em>' : ''}</span>
+          <span class="upload-status text-info" data-kind="after"></span>
+        </label>
+        ${renderPhotoGrid(after, service.photos || [])}
         <input type="file" class="form-control form-control-sm mt-2" accept="image/*" multiple id="afterUpload" ${isCompleted ? '' : 'disabled'} />
       </div>
     `;
@@ -170,33 +178,65 @@ window.ServiceForm = (() => {
       const fresh = await api('/api/services/' + service.id);
       renderPhotos(fresh);
     });
-    document.getElementById('beforeUpload').addEventListener('change', (e) => uploadPhotos(service.id, 'before', e.target.files));
-    if (isCompleted) document.getElementById('afterUpload').addEventListener('change', (e) => uploadPhotos(service.id, 'after', e.target.files));
-    box.querySelectorAll('.photo-del').forEach(b => b.addEventListener('click', () => deletePhoto(service.id, Number(b.dataset.id))));
+    document.getElementById('beforeUpload').addEventListener('change', (e) => uploadPhotos(service.id, 'before', e.target));
+    if (isCompleted) {
+      const a = document.getElementById('afterUpload');
+      if (a) a.addEventListener('change', (e) => uploadPhotos(service.id, 'after', e.target));
+    }
+    box.querySelectorAll('.photo-del').forEach(b => b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      deletePhoto(service.id, Number(b.dataset.id));
+    }));
+    box.querySelectorAll('.photo-thumb').forEach(el => el.addEventListener('click', (e) => {
+      e.preventDefault();
+      openViewer(service.photos || [], Number(el.dataset.id));
+    }));
   }
 
-  function renderPhotoGrid(photos) {
+  function renderPhotoGrid(photos, allPhotos) {
     if (!photos.length) return '<div class="small text-muted">— Sin fotos</div>';
     return `<div class="d-flex flex-wrap gap-2">${photos.map(p => `
       <div class="position-relative" style="width:96px;height:96px;">
-        <a href="/api/uploads/${p.filename}" target="_blank" rel="noopener">
-          <img src="/api/uploads/${p.filename}" style="width:96px;height:96px;object-fit:cover;border-radius:6px;border:1px solid #dee2e6;" />
+        <a href="#" class="photo-thumb d-block" data-id="${p.id}">
+          <img src="/api/uploads/${p.filename}" loading="lazy"
+            onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'d-flex align-items-center justify-content-center text-danger small',style:'width:96px;height:96px;border:1px solid #f5c2c7;border-radius:6px;background:#f8d7da;',innerText:'⚠ no carga'}))"
+            style="width:96px;height:96px;object-fit:cover;border-radius:6px;border:1px solid #dee2e6;" />
         </a>
         <button type="button" class="btn btn-sm btn-danger position-absolute photo-del" data-id="${p.id}" style="top:-6px;right:-6px;padding:0 6px;line-height:1.2;border-radius:50%;" title="Borrar">×</button>
       </div>
     `).join('')}</div>`;
   }
 
-  async function uploadPhotos(serviceId, kind, files) {
+  async function uploadPhotos(serviceId, kind, input) {
+    const files = input.files;
     if (!files || !files.length) return;
+    const statusEl = document.querySelector(`.upload-status[data-kind="${kind}"]`);
+    const showStatus = (txt, cls = 'text-info') => { if (statusEl) { statusEl.className = `upload-status ${cls}`; statusEl.textContent = txt; } };
+
     const fd = new FormData();
     Array.from(files).forEach(f => fd.append('photos', f));
+    const totalSize = Array.from(files).reduce((a, f) => a + f.size, 0);
+    showStatus(`Subiendo ${files.length} archivo${files.length > 1 ? 's' : ''} (${(totalSize/1024/1024).toFixed(1)} MB)…`);
+    input.disabled = true;
     try {
-      const r = await fetch(`/api/services/${serviceId}/photos?kind=${kind}`, { method: 'POST', body: fd });
-      if (!r.ok) throw new Error((await r.json()).error || 'Error al subir');
+      const r = await fetch(`/api/services/${serviceId}/photos?kind=${kind}`, {
+        method: 'POST',
+        body: fd,
+        credentials: 'same-origin'
+      });
+      const text = await r.text();
+      let parsed = null;
+      try { parsed = JSON.parse(text); } catch (e) {}
+      if (!r.ok) throw new Error((parsed && parsed.error) || text || `Error ${r.status}`);
+      showStatus(`✓ ${parsed.length} subida${parsed.length > 1 ? 's' : ''}`, 'text-success');
       const fresh = await api('/api/services/' + serviceId);
       renderPhotos(fresh);
-    } catch (err) { alert(err.message); }
+    } catch (err) {
+      showStatus('✗ ' + err.message, 'text-danger');
+      alert('Error al subir: ' + err.message);
+    } finally {
+      input.value = '';
+    }
   }
 
   async function deletePhoto(serviceId, photoId) {
@@ -204,6 +244,73 @@ window.ServiceForm = (() => {
     await api(`/api/services/${serviceId}/photos/${photoId}`, { method: 'DELETE' });
     const fresh = await api('/api/services/' + serviceId);
     renderPhotos(fresh);
+  }
+
+  // ---------- viewer (lightbox) ----------
+  let viewerPhotos = [];
+  let viewerIndex = 0;
+  let viewerModal = null;
+
+  function ensureViewer() {
+    if (document.getElementById('photoViewer')) return;
+    const html = `
+      <div class="modal fade" id="photoViewer" tabindex="-1">
+        <div class="modal-dialog modal-xl modal-dialog-centered">
+          <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-0 py-2">
+              <span class="small" id="viewerCounter"></span>
+              <span class="small ms-3" id="viewerKind"></span>
+              <button type="button" class="btn-close btn-close-white ms-auto" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body position-relative p-0 text-center" style="min-height: 60vh;">
+              <button id="viewerPrev" class="btn btn-light position-absolute top-50 start-0 translate-middle-y ms-2" style="opacity:.7;z-index:2;">‹</button>
+              <img id="viewerImg" style="max-height:80vh;max-width:100%;object-fit:contain;" />
+              <button id="viewerNext" class="btn btn-light position-absolute top-50 end-0 translate-middle-y me-2" style="opacity:.7;z-index:2;">›</button>
+            </div>
+            <div class="modal-footer border-0 py-2 justify-content-center">
+              <a id="viewerOpen" href="#" target="_blank" rel="noopener" class="btn btn-sm btn-outline-light">Abrir original</a>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = html.trim();
+    document.body.appendChild(wrapper.firstElementChild);
+    viewerModal = new bootstrap.Modal(document.getElementById('photoViewer'));
+    document.getElementById('viewerPrev').addEventListener('click', () => step(-1));
+    document.getElementById('viewerNext').addEventListener('click', () => step(1));
+    document.addEventListener('keydown', (e) => {
+      if (!document.getElementById('photoViewer').classList.contains('show')) return;
+      if (e.key === 'ArrowLeft') step(-1);
+      if (e.key === 'ArrowRight') step(1);
+    });
+  }
+
+  function openViewer(photos, photoId) {
+    ensureViewer();
+    viewerPhotos = photos;
+    viewerIndex = Math.max(0, photos.findIndex(p => p.id === photoId));
+    updateViewer();
+    viewerModal.show();
+  }
+
+  function step(d) {
+    if (!viewerPhotos.length) return;
+    viewerIndex = (viewerIndex + d + viewerPhotos.length) % viewerPhotos.length;
+    updateViewer();
+  }
+
+  function updateViewer() {
+    const p = viewerPhotos[viewerIndex];
+    if (!p) return;
+    const url = `/api/uploads/${p.filename}`;
+    document.getElementById('viewerImg').src = url;
+    document.getElementById('viewerOpen').href = url;
+    document.getElementById('viewerCounter').textContent = `${viewerIndex + 1} / ${viewerPhotos.length}`;
+    document.getElementById('viewerKind').textContent = p.kind === 'before' ? '📷 Antes' : '✅ Después';
+    const many = viewerPhotos.length > 1;
+    document.getElementById('viewerPrev').style.display = many ? '' : 'none';
+    document.getElementById('viewerNext').style.display = many ? '' : 'none';
   }
 
   async function onSubmit(e) {
