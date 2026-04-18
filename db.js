@@ -39,6 +39,17 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_services_client ON services(client_id);
   CREATE INDEX IF NOT EXISTS idx_services_date ON services(service_date);
   CREATE INDEX IF NOT EXISTS idx_services_category ON services(category);
+
+  CREATE TABLE IF NOT EXISTS quotes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prospect_name TEXT NOT NULL,
+    work_requested TEXT,
+    amount REAL NOT NULL DEFAULT 0,
+    quote_date TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_quotes_date ON quotes(quote_date);
 `);
 
 // Migraciones idempotentes para bases ya existentes

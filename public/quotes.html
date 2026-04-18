@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Presupuestos · Service CRM</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <div id="nav-placeholder"></div>
+
+  <main class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h1 class="h3 mb-0">Presupuestos</h1>
+      <button class="btn btn-primary" id="newBtn">+ Nuevo presupuesto</button>
+    </div>
+
+    <div class="mb-3">
+      <input id="search" class="form-control" placeholder="Buscar por nombre o trabajo…" />
+    </div>
+
+    <div class="card p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Fecha</th>
+              <th>Cliente potencial</th>
+              <th>Trabajo solicitado</th>
+              <th class="text-end">Presupuesto</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="quotes-body"></tbody>
+          <tfoot class="table-light">
+            <tr>
+              <th colspan="3" class="text-end">Total presupuestado:</th>
+              <th class="text-end money" id="totalSum">$0</th>
+              <th></th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <div class="modal fade" id="quoteModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form id="quoteForm">
+          <div class="modal-header">
+            <h5 class="modal-title" id="modalTitle">Nuevo presupuesto</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" name="id" />
+            <div class="mb-2">
+              <label class="form-label">Cliente potencial *</label>
+              <input class="form-control" name="prospect_name" required />
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Trabajo solicitado</label>
+              <textarea class="form-control" name="work_requested" rows="3" placeholder="Ej: Pintura de living + comedor, dos manos, color a definir"></textarea>
+            </div>
+            <div class="row g-2">
+              <div class="col-7">
+                <label class="form-label">Fecha *</label>
+                <input class="form-control" type="date" name="quote_date" required />
+              </div>
+              <div class="col-5">
+                <label class="form-label">Presupuesto enviado</label>
+                <input class="form-control" type="number" step="0.01" min="0" name="amount" />
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button class="btn btn-primary" type="submit">Guardar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="/js/common.js"></script>
+  <script>
+    renderNav('quotes');
+
+    const modal = new bootstrap.Modal(document.getElementById('quoteModal'));
+    const form = document.getElementById('quoteForm');
+
+    document.getElementById('newBtn').addEventListener('click', () => {
+      form.reset();
+      form.id.value = '';
+      form.quote_date.value = todayISO();
+      document.getElementById('modalTitle').textContent = 'Nuevo presupuesto';
+      modal.show();
+    });
+
+    async function load() {
+      const q = document.getElementById('search').value.trim();
+      const rows = await api('/api/quotes' + (q ? `?q=${encodeURIComponent(q)}` : ''));
+      const body = document.getElementById('quotes-body');
+      if (!rows.length) {
+        body.innerHTML = '<tr><td colspan="5" class="text-muted text-center p-4">Sin presupuestos.</td></tr>';
+        document.getElementById('totalSum').textContent = money(0);
+        return;
+      }
+      body.innerHTML = rows.map(q => `
+        <tr>
+          <td>${fmtDate(q.quote_date)}</td>
+          <td>${escapeHtml(q.prospect_name)}</td>
+          <td><span class="text-muted">${escapeHtml(q.work_requested || '')}</span></td>
+          <td class="text-end money">${money(q.amount)}</td>
+          <td class="text-end">
+            <button class="btn btn-sm btn-outline-secondary edit" data-id="${q.id}">Editar</button>
+            <button class="btn btn-sm btn-outline-danger del" data-id="${q.id}">Borrar</button>
+          </td>
+        </tr>
+      `).join('');
+      body.querySelectorAll('.edit').forEach(b => b.addEventListener('click', () => openEdit(b.dataset.id)));
+      body.querySelectorAll('.del').forEach(b => b.addEventListener('click', () => del(b.dataset.id)));
+      document.getElementById('totalSum').textContent = money(rows.reduce((a, r) => a + r.amount, 0));
+    }
+
+    async function openEdit(id) {
+      const q = await api('/api/quotes/' + id);
+      form.id.value = q.id;
+      form.prospect_name.value = q.prospect_name;
+      form.work_requested.value = q.work_requested || '';
+      form.amount.value = q.amount;
+      form.quote_date.value = q.quote_date;
+      document.getElementById('modalTitle').textContent = 'Editar presupuesto';
+      modal.show();
+    }
+
+    async function del(id) {
+      if (!confirm('¿Borrar este presupuesto?')) return;
+      await api('/api/quotes/' + id, { method: 'DELETE' });
+      load();
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const data = Object.fromEntries(new FormData(form));
+      const id = data.id;
+      delete data.id;
+      try {
+        if (id) await api('/api/quotes/' + id, { method: 'PUT', body: JSON.stringify(data) });
+        else await api('/api/quotes', { method: 'POST', body: JSON.stringify(data) });
+        modal.hide();
+        load();
+      } catch (err) { alert(err.message); }
+    });
+
+    function escapeHtml(s) {
+      return String(s ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[ch]);
+    }
+
+    let t;
+    document.getElementById('search').addEventListener('input', () => { clearTimeout(t); t = setTimeout(load, 250); });
+
+    load().catch(err => alert(err.message));
+  </script>
+</body>
+</html>

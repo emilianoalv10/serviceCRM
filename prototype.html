@@ -50,6 +50,7 @@
         <li class="nav-item"><a class="nav-link nav-tab" href="#" data-view="agenda">Agenda</a></li>
         <li class="nav-item"><a class="nav-link nav-tab" href="#" data-view="clients">Clientes</a></li>
         <li class="nav-item"><a class="nav-link nav-tab" href="#" data-view="services">Servicios</a></li>
+        <li class="nav-item"><a class="nav-link nav-tab" href="#" data-view="quotes">Presupuestos</a></li>
       </ul>
     </div>
   </nav>
@@ -141,6 +142,26 @@
         </tr></tfoot>
       </table></div></div>
     </section>
+
+    <!-- QUOTES -->
+    <section class="view" id="view-quotes">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="h3 mb-0">Presupuestos</h1>
+        <button class="btn btn-primary" id="newQuoteBtn">+ Nuevo presupuesto</button>
+      </div>
+      <div class="mb-3"><input id="quoteSearch" class="form-control" placeholder="Buscar…" /></div>
+      <div class="card p-0"><div class="table-responsive"><table class="table table-hover mb-0">
+        <thead class="table-light"><tr>
+          <th>Fecha</th><th>Cliente potencial</th><th>Trabajo solicitado</th><th class="text-end">Presupuesto</th><th></th>
+        </tr></thead>
+        <tbody id="quotes-body"></tbody>
+        <tfoot class="table-light"><tr>
+          <th colspan="3" class="text-end">Total presupuestado:</th>
+          <th class="text-end money" id="quotesTotal">$0</th>
+          <th></th>
+        </tr></tfoot>
+      </table></div></div>
+    </section>
   </main>
 
   <!-- Modal cliente -->
@@ -217,11 +238,32 @@
     </form>
   </div></div></div>
 
+  <!-- Modal presupuesto -->
+  <div class="modal fade" id="quoteModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+    <form id="quoteForm">
+      <div class="modal-header"><h5 class="modal-title" id="quoteModalTitle">Nuevo presupuesto</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <input type="hidden" name="id" />
+        <div class="mb-2"><label class="form-label">Cliente potencial *</label><input class="form-control" name="prospect_name" required /></div>
+        <div class="mb-2"><label class="form-label">Trabajo solicitado</label><textarea class="form-control" name="work_requested" rows="3"></textarea></div>
+        <div class="row g-2">
+          <div class="col-7"><label class="form-label">Fecha *</label><input class="form-control" type="date" name="quote_date" required /></div>
+          <div class="col-5"><label class="form-label">Presupuesto enviado</label><input class="form-control" type="number" step="0.01" min="0" name="amount" /></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-primary" type="submit">Guardar</button>
+      </div>
+    </form>
+  </div></div></div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
   (() => {
     const CATEGORIES = ['Jardinería', 'Limpieza', 'Fletes', 'Pintura', 'Otro'];
-    const STORAGE_KEY = 'service-crm-prototype-v2';
+    const STORAGE_KEY = 'service-crm-prototype-v3';
     const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
     const DOW_ES = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
 
@@ -239,7 +281,7 @@
     const catColor = c => ({ 'Jardinería':'success','Limpieza':'info','Fletes':'warning','Pintura':'primary','Otro':'secondary' }[c] || 'secondary');
 
     // ---------- store (localStorage) ----------
-    const state = { clients: [], services: [], seq: { client: 1, service: 1 } };
+    const state = { clients: [], services: [], quotes: [], seq: { client: 1, service: 1, quote: 1 } };
 
     function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
     function load() {
@@ -249,7 +291,7 @@
     function nextId(kind) { const id = state.seq[kind]++; save(); return id; }
 
     function seed() {
-      state.clients = []; state.services = []; state.seq = { client: 1, service: 1 };
+      state.clients = []; state.services = []; state.quotes = []; state.seq = { client: 1, service: 1, quote: 1 };
       const sampleClients = [
         { name: 'María González',  phone: '11-2345-6789', email: 'maria@mail.com',  address: 'Av. Siempreviva 742',     notes: 'Quincena par.' },
         { name: 'Carlos Fernández', phone: '11-3456-7890', email: 'carlos@mail.com', address: 'Belgrano 1020',            notes: 'Paga en efectivo.' },
@@ -280,6 +322,17 @@
         id: nextId('service'), client_id: s.cid, category: s.category, description: s.description,
         service_date: s.date, service_time: s.time || null, price: s.price, paid: s.paid, paid_at: s.paid ? new Date().toISOString() : null
       }));
+
+      const sampleQuotes = [
+        { name: 'Roberto Suárez', work: 'Pintura completa de oficina (3 ambientes)', date: daysAgo(2),  amount: 220000 },
+        { name: 'Familia Acosta', work: 'Mudanza con flete grande, sábado a la mañana', date: daysAgo(7), amount: 90000 },
+        { name: 'Inmobiliaria del Sur', work: 'Limpieza profunda casa 4 ambientes para entrega', date: daysAgo(14), amount: 75000 }
+      ];
+      sampleQuotes.forEach(q => state.quotes.push({
+        id: nextId('quote'), prospect_name: q.name, work_requested: q.work,
+        amount: q.amount, quote_date: q.date, created_at: new Date().toISOString()
+      }));
+
       save();
     }
 
@@ -721,6 +774,79 @@
     $('#todayBtn').addEventListener('click', () => { currentMonth = startOfMonth(new Date()); selectedDate = toISO(new Date()); renderAgenda(); });
     $('#newOnSelected').addEventListener('click', () => openSvcNew({ date: selectedDate }));
 
+    // ---------- quotes ----------
+    const quoteModal = new bootstrap.Modal($('#quoteModal'));
+
+    function renderQuotes() {
+      const q = $('#quoteSearch').value.trim().toLowerCase();
+      const rows = state.quotes
+        .filter(r => !q || (r.prospect_name + ' ' + (r.work_requested||'')).toLowerCase().includes(q))
+        .slice()
+        .sort((a, b) => b.quote_date.localeCompare(a.quote_date) || b.id - a.id);
+      const body = $('#quotes-body');
+      if (!rows.length) {
+        body.innerHTML = '<tr><td colspan="5" class="text-muted text-center p-4">Sin presupuestos.</td></tr>';
+        $('#quotesTotal').textContent = money(0);
+        return;
+      }
+      body.innerHTML = rows.map(r => `
+        <tr>
+          <td>${fmtDate(r.quote_date)}</td>
+          <td>${escapeHtml(r.prospect_name)}</td>
+          <td><span class="text-muted">${escapeHtml(r.work_requested||'')}</span></td>
+          <td class="text-end money">${money(r.amount)}</td>
+          <td class="text-end">
+            <button class="btn btn-sm btn-outline-secondary edit-quote" data-id="${r.id}">Editar</button>
+            <button class="btn btn-sm btn-outline-danger del-quote" data-id="${r.id}">Borrar</button>
+          </td>
+        </tr>`).join('');
+      $$('.edit-quote', body).forEach(b => b.addEventListener('click', () => openQuoteEdit(Number(b.dataset.id))));
+      $$('.del-quote', body).forEach(b => b.addEventListener('click', () => delQuote(Number(b.dataset.id))));
+      $('#quotesTotal').textContent = money(rows.reduce((a, r) => a + r.amount, 0));
+    }
+
+    function openQuoteNew() {
+      const f = $('#quoteForm'); f.reset(); f.id.value = '';
+      f.quote_date.value = todayISO();
+      $('#quoteModalTitle').textContent = 'Nuevo presupuesto';
+      quoteModal.show();
+    }
+    function openQuoteEdit(id) {
+      const q = state.quotes.find(x => x.id === id); if (!q) return;
+      const f = $('#quoteForm');
+      f.id.value = q.id; f.prospect_name.value = q.prospect_name;
+      f.work_requested.value = q.work_requested || '';
+      f.amount.value = q.amount; f.quote_date.value = q.quote_date;
+      $('#quoteModalTitle').textContent = 'Editar presupuesto';
+      quoteModal.show();
+    }
+    function delQuote(id) {
+      if (!confirm('¿Borrar este presupuesto?')) return;
+      state.quotes = state.quotes.filter(q => q.id !== id);
+      save(); renderQuotes();
+    }
+    $('#quoteForm').addEventListener('submit', e => {
+      e.preventDefault();
+      const data = Object.fromEntries(new FormData(e.target));
+      if (!data.prospect_name.trim()) return;
+      const payload = {
+        prospect_name: data.prospect_name.trim(),
+        work_requested: data.work_requested || null,
+        amount: Number(data.amount || 0),
+        quote_date: data.quote_date
+      };
+      if (data.id) {
+        const q = state.quotes.find(x => x.id === Number(data.id));
+        Object.assign(q, payload);
+      } else {
+        state.quotes.push({ id: nextId('quote'), ...payload, created_at: new Date().toISOString() });
+      }
+      save(); quoteModal.hide(); renderQuotes();
+    });
+    $('#newQuoteBtn').addEventListener('click', openQuoteNew);
+    let quoteSearchT;
+    $('#quoteSearch').addEventListener('input', () => { clearTimeout(quoteSearchT); quoteSearchT = setTimeout(renderQuotes, 200); });
+
     // ---------- demo banner actions ----------
     $('#resetDemo').addEventListener('click', () => {
       if (!confirm('Esto reemplaza todos los datos por el set de ejemplo. ¿Seguir?')) return;
@@ -728,12 +854,12 @@
     });
     $('#wipeDemo').addEventListener('click', () => {
       if (!confirm('Esto borra todos los datos. ¿Seguir?')) return;
-      state.clients = []; state.services = []; state.seq = { client: 1, service: 1 };
+      state.clients = []; state.services = []; state.quotes = []; state.seq = { client: 1, service: 1, quote: 1 };
       save(); renderAll();
     });
 
     // ---------- init ----------
-    function renderAll() { fillSelects(); renderDashboard(); renderClients(); renderServices(); renderAgenda(); }
+    function renderAll() { fillSelects(); renderDashboard(); renderClients(); renderServices(); renderAgenda(); renderQuotes(); }
 
     load();
     if (!state.clients.length && !state.services.length) seed();
