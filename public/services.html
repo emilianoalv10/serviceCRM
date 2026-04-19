@@ -41,6 +41,7 @@
               <th>Hora</th>
               <th>Cliente</th>
               <th>Rubro</th>
+              <th>Empleado</th>
               <th>Descripción</th>
               <th class="text-end">Precio</th>
               <th>Trabajo</th>
@@ -51,7 +52,7 @@
           <tbody id="services-body"></tbody>
           <tfoot class="table-light">
             <tr>
-              <th colspan="5" class="text-end">Totales:</th>
+              <th colspan="6" class="text-end">Totales:</th>
               <th class="text-end money" id="totalFiltered">$0</th>
               <th colspan="3" class="small text-muted" id="totalBreakdown"></th>
             </tr>
@@ -78,6 +79,10 @@
             <div class="mb-2">
               <label class="form-label">Rubro *</label>
               <select class="form-select" name="category" required id="categorySelect"></select>
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Empleado asignado</label>
+              <select class="form-select" name="employee_id" id="employeeSelect"></select>
             </div>
             <div class="row g-2 mb-2">
               <div class="col-7">
@@ -119,6 +124,7 @@
               <label class="form-check-label" for="paidChk">Ya está pagado</label>
             </div>
             <div id="photoSection"></div>
+            <div id="shareSection"></div>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -165,7 +171,7 @@
       const rows = await api('/api/services' + (qs ? '?' + qs : ''));
       const body = document.getElementById('services-body');
       if (!rows.length) {
-        body.innerHTML = '<tr><td colspan="9" class="text-muted text-center p-4">Sin servicios.</td></tr>';
+        body.innerHTML = '<tr><td colspan="10" class="text-muted text-center p-4">Sin servicios.</td></tr>';
         document.getElementById('totalFiltered').textContent = money(0);
         document.getElementById('totalBreakdown').textContent = '';
         return;
@@ -176,6 +182,7 @@
           <td>${s.service_time ? '<span class="text-primary fw-semibold">' + s.service_time + '</span>' : '<span class="text-muted">—</span>'}</td>
           <td><a href="/clients.html?id=${s.client_id}">${escapeHtml(s.client_name)}</a></td>
           <td><span class="badge text-bg-${catBadgeColor(s.category)}">${s.category}</span></td>
+          <td>${s.employee_name ? '<span class="badge text-bg-light text-dark border">👤 ' + escapeHtml(s.employee_name) + '</span>' : '<span class="text-muted small">—</span>'}</td>
           <td>${escapeHtml(s.description || '')}</td>
           <td class="text-end money">${money(s.price)}</td>
           <td>

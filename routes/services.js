@@ -61,7 +61,7 @@ function addRecurrence(dateStr, kind, i) {
 }
 
 router.get('/', (req, res) => {
-  const { client_id, category, paid, from, to, sort } = req.query;
+  const { client_id, category, paid, from, to, sort, employee_id } = req.query;
   const where = [];
   const params = [];
   if (client_id) { where.push('s.client_id = ?'); params.push(client_id); }
@@ -69,13 +69,16 @@ router.get('/', (req, res) => {
   if (paid === '0' || paid === '1') { where.push('s.paid = ?'); params.push(Number(paid)); }
   if (from) { where.push('s.service_date >= ?'); params.push(from); }
   if (to) { where.push('s.service_date <= ?'); params.push(to); }
+  if (employee_id) { where.push('s.employee_id = ?'); params.push(employee_id); }
   const order = sort === 'asc'
     ? 'ORDER BY s.service_date ASC, s.service_time ASC, s.id ASC'
     : 'ORDER BY s.service_date DESC, s.service_time DESC, s.id DESC';
   const sql = `
-    SELECT s.*, c.name AS client_name
+    SELECT s.*, c.name AS client_name, c.phone AS client_phone, c.address AS client_address,
+      e.name AS employee_name, e.phone AS employee_phone
     FROM services s
     JOIN clients c ON c.id = s.client_id
+    LEFT JOIN employees e ON e.id = s.employee_id
     ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
     ${order}
   `;
@@ -84,8 +87,11 @@ router.get('/', (req, res) => {
 
 router.get('/:id', (req, res) => {
   const row = db.prepare(`
-    SELECT s.*, c.name AS client_name
-    FROM services s JOIN clients c ON c.id = s.client_id
+    SELECT s.*, c.name AS client_name, c.phone AS client_phone, c.address AS client_address, c.map_url AS client_map_url,
+      e.name AS employee_name, e.phone AS employee_phone
+    FROM services s
+    JOIN clients c ON c.id = s.client_id
+    LEFT JOIN employees e ON e.id = s.employee_id
     WHERE s.id = ?
   `).get(req.params.id);
   if (!row) return res.status(404).json({ error: 'No encontrado' });
@@ -94,7 +100,7 @@ router.get('/:id', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-  const { client_id, category, description, service_date, service_time, price, paid, recurrence, occurrences } = req.body;
+  const { client_id, category, description, service_date, service_time, price, paid, recurrence, occurrences, employee_id } = req.body;
   if (!client_id) return res.status(400).json({ error: 'Cliente obligatorio' });
   if (!category) return res.status(400).json({ error: 'Categoría obligatoria' });
   if (!service_date) return res.status(400).json({ error: 'Fecha obligatoria' });
@@ -102,13 +108,14 @@ router.post('/', (req, res) => {
   const priceNum = Number(price) || 0;
   const paidNum = paid ? 1 : 0;
   const time = sanitizeTime(service_time);
+  const empId = employee_id ? Number(employee_id) : null;
 
   const recKind = recurrence && RECURRENCE.hasOwnProperty(recurrence) ? recurrence : null;
   const count = recKind ? Math.max(1, Math.min(52, Number(occurrences) || 1)) : 1;
 
   const insert = db.prepare(`
-    INSERT INTO services (client_id, category, description, service_date, service_time, price, paid, paid_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO services (client_id, category, description, service_date, service_time, price, paid, paid_at, employee_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertMany = db.transaction(() => {
@@ -116,7 +123,7 @@ router.post('/', (req, res) => {
     for (let i = 0; i < count; i++) {
       const date = recKind ? addRecurrence(service_date, recKind, i) : service_date;
       const paidAt = paidNum ? new Date().toISOString() : null;
-      const info = insert.run(client_id, category, description || null, date, time, priceNum, paidNum, paidAt);
+      const info = insert.run(client_id, category, description || null, date, time, priceNum, paidNum, paidAt, empId);
       ids.push(info.lastInsertRowid);
     }
     return ids;
@@ -128,15 +135,16 @@ router.post('/', (req, res) => {
 });
 
 router.put('/:id', (req, res) => {
-  const { client_id, category, description, service_date, service_time, price, paid } = req.body;
+  const { client_id, category, description, service_date, service_time, price, paid, employee_id } = req.body;
   const current = db.prepare('SELECT * FROM services WHERE id = ?').get(req.params.id);
   if (!current) return res.status(404).json({ error: 'No encontrado' });
   const paidNum = paid ? 1 : 0;
   let paidAt = current.paid_at;
   if (paidNum && !current.paid) paidAt = new Date().toISOString();
   if (!paidNum) paidAt = null;
+  const empId = employee_id === '' || employee_id === null ? null : (employee_id !== undefined ? Number(employee_id) : current.employee_id);
   db.prepare(`
-    UPDATE services SET client_id = ?, category = ?, description = ?, service_date = ?, service_time = ?, price = ?, paid = ?, paid_at = ?
+    UPDATE services SET client_id = ?, category = ?, description = ?, service_date = ?, service_time = ?, price = ?, paid = ?, paid_at = ?, employee_id = ?
     WHERE id = ?
   `).run(
     client_id || current.client_id,
@@ -147,6 +155,7 @@ router.put('/:id', (req, res) => {
     price !== undefined ? Number(price) : current.price,
     paidNum,
     paidAt,
+    empId,
     req.params.id
   );
   res.json(db.prepare('SELECT * FROM services WHERE id = ?').get(req.params.id));

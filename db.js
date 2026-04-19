@@ -65,6 +65,16 @@ db.exec(`
     FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE CASCADE
   );
   CREATE INDEX IF NOT EXISTS idx_photos_service ON service_photos(service_id);
+
+  CREATE TABLE IF NOT EXISTS employees (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    phone TEXT,
+    role TEXT,
+    notes TEXT,
+    active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `);
 
 // Migraciones idempotentes para bases ya existentes
@@ -82,6 +92,9 @@ if (!serviceColumns.includes('completed')) {
 }
 if (!serviceColumns.includes('completed_at')) {
   db.exec('ALTER TABLE services ADD COLUMN completed_at TEXT');
+}
+if (!serviceColumns.includes('employee_id')) {
+  db.exec('ALTER TABLE services ADD COLUMN employee_id INTEGER');
 }
 
 const quoteColumns = db.prepare('PRAGMA table_info(quotes)').all().map(r => r.name);

@@ -69,9 +69,10 @@ app.get('/api/uploads/:filename', (req, res) => {
 app.use('/api/clients', require('./routes/clients'));
 app.use('/api/services', require('./routes/services'));
 app.use('/api/quotes', require('./routes/quotes'));
+app.use('/api/employees', require('./routes/employees'));
 app.use('/api/analytics', require('./routes/analytics'));
 
-app.get(['/', '/index.html', '/clients.html', '/services.html', '/agenda.html', '/quotes.html'], requireAuth, (req, res, next) => {
+app.get(['/', '/index.html', '/clients.html', '/services.html', '/agenda.html', '/quotes.html', '/employees.html'], requireAuth, (req, res, next) => {
   next();
 });
 

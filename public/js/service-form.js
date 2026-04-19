@@ -1,16 +1,17 @@
 // Componente reusable para el form de servicio (usado en services.html y agenda.html).
 // Requiere: un modal #svcModal con form#svcForm y selects #clientSelect, #categorySelect, y un div #daySchedule opcional.
 window.ServiceForm = (() => {
-  let modal, form, clients = [], categories = [], onSaved = null, allServices = [];
+  let modal, form, clients = [], categories = [], employees = [], onSaved = null, allServices = [];
 
   async function init(opts = {}) {
     onSaved = opts.onSaved || null;
     modal = new bootstrap.Modal(document.getElementById('svcModal'));
     form = document.getElementById('svcForm');
 
-    [categories, clients, allServices] = await Promise.all([
+    [categories, clients, employees, allServices] = await Promise.all([
       api('/api/services/categories'),
       api('/api/clients'),
+      api('/api/employees?active=1').catch(() => []),
       api('/api/services?sort=asc')
     ]);
 
@@ -19,6 +20,11 @@ window.ServiceForm = (() => {
     document.getElementById('clientSelect').innerHTML =
       '<option value="">— Seleccionar —</option>' +
       clients.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+    const empSel = document.getElementById('employeeSelect');
+    if (empSel) {
+      empSel.innerHTML = '<option value="">Sin asignar</option>' +
+        employees.map(e => `<option value="${e.id}">${escapeHtml(e.name)}${e.role ? ' · ' + escapeHtml(e.role) : ''}</option>`).join('');
+    }
 
     form.addEventListener('submit', onSubmit);
     const dateInput = form.querySelector('[name="service_date"]');
@@ -99,7 +105,7 @@ window.ServiceForm = (() => {
     `;
   }
 
-  async function openNew({ date, clientId, description, price, category } = {}) {
+  async function openNew({ date, clientId, description, price, category, employeeId } = {}) {
     await refreshAll();
     form.reset();
     form.id.value = '';
@@ -108,12 +114,14 @@ window.ServiceForm = (() => {
     if (category) form.category.value = category;
     if (description != null) form.description.value = description;
     if (price != null) form.price.value = price;
+    if (employeeId && form.employee_id) form.employee_id.value = employeeId;
     if (form.recurrence) form.recurrence.value = '';
     if (form.occurrences) form.occurrences.value = 4;
     document.getElementById('svcModalTitle').textContent = 'Nuevo servicio';
     renderDaySchedule();
     renderRecurrencePreview();
     renderPhotos(null);
+    renderShare(null);
     modal.show();
   }
 
@@ -128,10 +136,12 @@ window.ServiceForm = (() => {
     form.description.value = s.description || '';
     form.price.value = s.price;
     form.paid.checked = !!s.paid;
+    if (form.employee_id) form.employee_id.value = s.employee_id || '';
     document.getElementById('svcModalTitle').textContent = 'Editar servicio';
     renderDaySchedule();
     renderRecurrencePreview();
     renderPhotos(s);
+    renderShare(s);
     modal.show();
   }
 
@@ -246,6 +256,96 @@ window.ServiceForm = (() => {
     renderPhotos(fresh);
   }
 
+  // ---------- share (WhatsApp) ----------
+  function cleanPhone(p) {
+    if (!p) return '';
+    return String(p).replace(/[^\d+]/g, '').replace(/^\+/, '');
+  }
+
+  function waLink(phone, text) {
+    const p = cleanPhone(phone);
+    const url = 'https://wa.me/' + (p || '') + '?text=' + encodeURIComponent(text);
+    return url;
+  }
+
+  function fmtDateEs(s) {
+    if (!s) return '';
+    const d = s.length <= 10 ? new Date(s + 'T00:00:00') : new Date(s);
+    if (isNaN(d)) return s;
+    return d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  }
+
+  function buildClientMessage(s) {
+    const lines = [
+      '*Servicio agendado*',
+      '',
+      `Cliente: ${s.client_name}`,
+      `Rubro: ${s.category}`,
+      `Fecha: ${fmtDateEs(s.service_date)}${s.service_time ? ' a las ' + s.service_time + ' hs' : ''}`
+    ];
+    if (s.description) lines.push(`\nDetalle: ${s.description}`);
+    if (s.price) lines.push(`Precio: $${Number(s.price).toLocaleString('es-AR')}`);
+    if (s.employee_name) lines.push(`\nTe atiende: ${s.employee_name}`);
+    lines.push('\n¡Cualquier duda me avisás!');
+    return lines.join('\n');
+  }
+
+  function buildEmployeeMessage(s) {
+    const lines = [
+      '*Nuevo servicio asignado*',
+      '',
+      `Fecha: ${fmtDateEs(s.service_date)}${s.service_time ? ' a las ' + s.service_time + ' hs' : ''}`,
+      `Rubro: ${s.category}`,
+      '',
+      `Cliente: ${s.client_name}`
+    ];
+    if (s.client_phone) lines.push(`Tel: ${s.client_phone}`);
+    if (s.client_address) lines.push(`Dirección: ${s.client_address}`);
+    if (s.client_map_url) lines.push(`Mapa: ${s.client_map_url}`);
+    if (s.description) lines.push(`\nDetalle del trabajo:\n${s.description}`);
+    if (s.price) lines.push(`\nPrecio acordado: $${Number(s.price).toLocaleString('es-AR')}`);
+    return lines.join('\n');
+  }
+
+  function renderShare(service) {
+    const box = document.getElementById('shareSection');
+    if (!box) return;
+    if (!service || !service.id) { box.innerHTML = ''; return; }
+    const clientTxt = buildClientMessage(service);
+    const empTxt = buildEmployeeMessage(service);
+    const clientPhone = cleanPhone(service.client_phone);
+    const empPhone = cleanPhone(service.employee_phone);
+    box.innerHTML = `
+      <hr class="my-3" />
+      <div class="mb-2"><strong>📤 Compartir</strong></div>
+      <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-sm btn-success ${clientPhone ? '' : 'disabled'}" target="_blank" rel="noopener"
+           href="${waLink(service.client_phone, clientTxt)}"
+           ${clientPhone ? '' : 'title="El cliente no tiene teléfono cargado"'}>
+          WhatsApp al cliente${clientPhone ? '' : ' (sin tel.)'}
+        </a>
+        <a class="btn btn-sm btn-success ${empPhone ? '' : 'disabled'}" target="_blank" rel="noopener"
+           href="${waLink(service.employee_phone, empTxt)}"
+           ${empPhone ? '' : 'title="El empleado no tiene teléfono cargado o no está asignado"'}>
+          WhatsApp al empleado${service.employee_name ? '' : ' (sin asignar)'}
+        </a>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="copyClientMsg">Copiar mensaje cliente</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="copyEmpMsg">Copiar mensaje empleado</button>
+      </div>
+    `;
+    document.getElementById('copyClientMsg').addEventListener('click', () => copy(clientTxt, 'Mensaje para cliente copiado'));
+    document.getElementById('copyEmpMsg').addEventListener('click', () => copy(empTxt, 'Mensaje para empleado copiado'));
+  }
+
+  async function copy(text, okMsg) {
+    try {
+      await navigator.clipboard.writeText(text);
+      alert(okMsg || 'Copiado');
+    } catch (e) {
+      alert('No se pudo copiar. Copialo a mano:\n\n' + text);
+    }
+  }
+
   // ---------- viewer (lightbox) ----------
   let viewerPhotos = [];
   let viewerIndex = 0;
@@ -319,6 +419,7 @@ window.ServiceForm = (() => {
     const data = Object.fromEntries(fd);
     data.paid = fd.get('paid') ? 1 : 0;
     data.price = Number(data.price || 0);
+    if (data.employee_id === '') data.employee_id = null;
     const id = data.id;
     delete data.id;
     if (id) {

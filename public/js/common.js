@@ -48,6 +48,7 @@ function renderNav(active) {
             <li class="nav-item"><a class="nav-link ${active==='clients'?'active':''}" href="/clients.html">Clientes</a></li>
             <li class="nav-item"><a class="nav-link ${active==='services'?'active':''}" href="/services.html">Servicios</a></li>
             <li class="nav-item"><a class="nav-link ${active==='quotes'?'active':''}" href="/quotes.html">Presupuestos</a></li>
+            <li class="nav-item"><a class="nav-link ${active==='employees'?'active':''}" href="/employees.html">Empleados</a></li>
           </ul>
           <button id="logoutBtn" class="btn btn-outline-light btn-sm">Salir</button>
         </div>
