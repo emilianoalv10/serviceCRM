@@ -167,8 +167,9 @@
 
     async function load() {
       const f = currentFilters();
-      const qs = new URLSearchParams(Object.entries(f).filter(([,v]) => v !== '')).toString();
-      const rows = await api('/api/services' + (qs ? '?' + qs : ''));
+      const params = new URLSearchParams(Object.entries(f).filter(([,v]) => v !== ''));
+      params.set('sort', 'asc');
+      const rows = await api('/api/services?' + params.toString());
       const body = document.getElementById('services-body');
       if (!rows.length) {
         body.innerHTML = '<tr><td colspan="10" class="text-muted text-center p-4">Sin servicios.</td></tr>';
