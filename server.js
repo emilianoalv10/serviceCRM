@@ -2,7 +2,9 @@ require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
 const path = require('path');
+const fs = require('fs');
 const db = require('./db');
+const backup = require('./backup');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -72,6 +74,28 @@ app.use('/api/quotes', require('./routes/quotes'));
 app.use('/api/employees', require('./routes/employees'));
 app.use('/api/analytics', require('./routes/analytics'));
 
+app.get('/api/backups', (req, res) => {
+  res.json({ backups: backup.listBackups(), keep: backup.KEEP, interval_days: 7 });
+});
+
+app.post('/api/backups', async (req, res) => {
+  try {
+    const info = await backup.runBackup();
+    res.status(201).json(info);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/backups/:filename', (req, res) => {
+  if (!/^crm-[\w.\-:]+\.db$/.test(req.params.filename)) {
+    return res.status(400).json({ error: 'Nombre inválido' });
+  }
+  const full = path.join(backup.BACKUP_DIR, req.params.filename);
+  if (!fs.existsSync(full)) return res.status(404).json({ error: 'No encontrado' });
+  res.download(full);
+});
+
 app.get(['/', '/index.html', '/clients.html', '/services.html', '/agenda.html', '/quotes.html', '/employees.html'], requireAuth, (req, res, next) => {
   next();
 });
@@ -81,8 +105,6 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.get('/health', (req, res) => res.json({ ok: true }));
 
 app.get('/api/diagnostics', requireAuth, (req, res) => {
-  const fs = require('fs');
-  const path = require('path');
   const dbPath = process.env.DB_PATH || path.join(__dirname, 'data', 'crm.db');
   let size = null, exists = false, writable = false;
   try { const st = fs.statSync(dbPath); exists = true; size = st.size; } catch (e) {}
@@ -102,6 +124,9 @@ app.get('/api/diagnostics', requireAuth, (req, res) => {
   uploadsOrphans = fileList.filter(f => !dbFilenames.has(f)).length;
   uploadsMissing = [...dbFilenames].filter(f => !fileList.includes(f)).length;
 
+  const backups = backup.listBackups();
+  const last = backup.lastBackupTime();
+
   res.json({
     db_path: dbPath,
     db_file_exists: exists,
@@ -115,7 +140,15 @@ app.get('/api/diagnostics', requireAuth, (req, res) => {
     uploads_dir_exists: uploadsExists,
     uploads_files_on_disk: uploadsFiles,
     uploads_orphan_files: uploadsOrphans,
-    uploads_missing_files: uploadsMissing
+    uploads_missing_files: uploadsMissing,
+    backups: {
+      dir: backup.BACKUP_DIR,
+      count: backups.length,
+      keep: backup.KEEP,
+      last_at: last ? last.toISOString() : null,
+      next_due_at: last ? new Date(last.getTime() + backup.BACKUP_INTERVAL_MS).toISOString() : 'al próximo chequeo (~30s tras arranque)',
+      files: backups
+    }
   });
 });
 
@@ -126,4 +159,5 @@ app.use((err, req, res, next) => {
 
 app.listen(PORT, () => {
   console.log(`Service CRM escuchando en puerto ${PORT}`);
+  backup.start();
 });
