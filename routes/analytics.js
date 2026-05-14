@@ -33,14 +33,20 @@ function rangeTotals(from, to) {
 }
 
 router.get('/summary', (req, res) => {
+  const todayD = new Date();
+  const startThisMonth = new Date(todayD.getFullYear(), todayD.getMonth(), 1);
+  const endNextMonth = new Date(todayD.getFullYear(), todayD.getMonth() + 2, 0);
+  const pendingFrom = toISO(startThisMonth);
+  const pendingTo = toISO(endNextMonth);
+
   const totals = db.prepare(`
     SELECT
       COUNT(*) AS services_count,
       COALESCE(SUM(price), 0) AS total_billed,
       COALESCE(SUM(CASE WHEN paid = 1 THEN price ELSE 0 END), 0) AS total_paid,
-      COALESCE(SUM(CASE WHEN paid = 0 THEN price ELSE 0 END), 0) AS total_pending
+      COALESCE(SUM(CASE WHEN paid = 0 AND service_date >= ? AND service_date <= ? THEN price ELSE 0 END), 0) AS total_pending
     FROM services
-  `).get();
+  `).get(pendingFrom, pendingTo);
 
   const clientsCount = db.prepare('SELECT COUNT(*) AS n FROM clients').get().n;
   const byCategory = db.prepare(`
@@ -106,7 +112,7 @@ router.get('/summary', (req, res) => {
   const lastWeekToSameDow = rangeTotals(toISO(lastWeekStart), toISO(lastWeekSameDow));
 
   res.json({
-    totals: { ...totals, clients_count: clientsCount },
+    totals: { ...totals, clients_count: clientsCount, pending_from: pendingFrom, pending_to: pendingTo },
     by_category: byCategory,
     by_month: byMonth.reverse(),
     top_clients: topClients,
