@@ -111,6 +111,10 @@ router.get('/summary', (req, res) => {
   const lastWeek = rangeTotals(toISO(lastWeekStart), toISO(lastWeekEnd));
   const lastWeekToSameDow = rangeTotals(toISO(lastWeekStart), toISO(lastWeekSameDow));
 
+  const nextWeekStart = addDays(thisWeekStart, 7);
+  const nextWeekEnd = addDays(thisWeekStart, 13);
+  const nextWeek = rangeTotals(toISO(nextWeekStart), toISO(nextWeekEnd));
+
   res.json({
     totals: { ...totals, clients_count: clientsCount, pending_from: pendingFrom, pending_to: pendingTo },
     by_category: byCategory,
@@ -127,7 +131,8 @@ router.get('/summary', (req, res) => {
         paid_full: thisWeekFull.paid
       },
       last_week: { from: toISO(lastWeekStart), to: toISO(lastWeekEnd), ...lastWeek },
-      last_week_to_same_dow: { from: toISO(lastWeekStart), to: toISO(lastWeekSameDow), ...lastWeekToSameDow }
+      last_week_to_same_dow: { from: toISO(lastWeekStart), to: toISO(lastWeekSameDow), ...lastWeekToSameDow },
+      next_week: { from: toISO(nextWeekStart), to: toISO(nextWeekEnd), ...nextWeek }
     }
   });
 });
