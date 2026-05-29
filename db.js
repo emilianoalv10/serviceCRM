@@ -30,6 +30,7 @@ db.exec(`
     service_date TEXT NOT NULL,
     service_time TEXT,
     price REAL NOT NULL DEFAULT 0,
+    profit_pct REAL NOT NULL DEFAULT 50,
     paid INTEGER NOT NULL DEFAULT 0,
     paid_at TEXT,
     completed INTEGER NOT NULL DEFAULT 0,
@@ -105,6 +106,9 @@ if (!serviceColumns.includes('completed_at')) {
 }
 if (!serviceColumns.includes('employee_id')) {
   db.exec('ALTER TABLE services ADD COLUMN employee_id INTEGER');
+}
+if (!serviceColumns.includes('profit_pct')) {
+  db.exec('ALTER TABLE services ADD COLUMN profit_pct REAL NOT NULL DEFAULT 50');
 }
 
 const quoteColumns = db.prepare('PRAGMA table_info(quotes)').all().map(r => r.name);

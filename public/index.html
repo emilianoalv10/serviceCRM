@@ -111,9 +111,10 @@
         <div class="row g-3">
           <div class="col-md-4">
             <div class="border rounded p-3 h-100">
-              <div class="small text-muted">Ingresos del mes</div>
-              <div class="h4 mb-0 money text-success mt-1">${money(m.income_billed)}</div>
-              <div class="small text-muted mt-1">Ya cobrado: ${money(m.income_paid)}</div>
+              <div class="small text-muted">Mi parte del mes <span class="text-secondary">(precio × mi %)</span></div>
+              <div class="h4 mb-0 money text-success mt-1">${money(m.my_share_billed)}</div>
+              <div class="small text-muted mt-1">Ya cobrado: ${money(m.my_share_paid)}</div>
+              <div class="small text-muted mt-1">Facturación bruta: ${money(m.income_billed)}</div>
             </div>
           </div>
           <div class="col-md-4">
@@ -125,9 +126,9 @@
           </div>
           <div class="col-md-4">
             <div class="border rounded p-3 h-100 ${resultBilled >= 0 ? 'border-success' : 'border-danger'}">
-              <div class="small text-muted">Resultado (facturado − gastos)</div>
+              <div class="small text-muted">Ganancia del mes <span class="text-secondary">(mi parte − gastos)</span></div>
               <div class="h4 mb-0 money ${colorBilled} mt-1">${resultBilled >= 0 ? '' : '- '}${money(Math.abs(resultBilled))}</div>
-              <div class="small ${colorPaid} mt-1">En caja real (cobrado − gastos): ${resultPaid >= 0 ? '' : '- '}${money(Math.abs(resultPaid))}</div>
+              <div class="small ${colorPaid} mt-1">En caja real (cobrado × % − gastos): ${resultPaid >= 0 ? '' : '- '}${money(Math.abs(resultPaid))}</div>
             </div>
           </div>
         </div>

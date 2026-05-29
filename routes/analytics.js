@@ -122,7 +122,9 @@ router.get('/summary', (req, res) => {
   const incomeThisMonth = db.prepare(`
     SELECT
       COALESCE(SUM(price), 0) AS billed,
-      COALESCE(SUM(CASE WHEN paid = 1 THEN price ELSE 0 END), 0) AS paid
+      COALESCE(SUM(CASE WHEN paid = 1 THEN price ELSE 0 END), 0) AS paid,
+      COALESCE(SUM(price * profit_pct / 100.0), 0) AS my_share_billed,
+      COALESCE(SUM(CASE WHEN paid = 1 THEN price * profit_pct / 100.0 ELSE 0 END), 0) AS my_share_paid
     FROM services
     WHERE service_date >= ? AND service_date <= ?
   `).get(startThisMonthStr, endThisMonthStr);
@@ -156,9 +158,11 @@ router.get('/summary', (req, res) => {
       to: endThisMonthStr,
       income_billed: incomeThisMonth.billed,
       income_paid: incomeThisMonth.paid,
+      my_share_billed: incomeThisMonth.my_share_billed,
+      my_share_paid: incomeThisMonth.my_share_paid,
       costs: costsThisMonth,
-      result_billed: incomeThisMonth.billed - costsThisMonth,
-      result_paid: incomeThisMonth.paid - costsThisMonth
+      result_billed: incomeThisMonth.my_share_billed - costsThisMonth,
+      result_paid: incomeThisMonth.my_share_paid - costsThisMonth
     }
   });
 });

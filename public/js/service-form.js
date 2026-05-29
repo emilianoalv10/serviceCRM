@@ -33,6 +33,20 @@ window.ServiceForm = (() => {
     const occInput = form.querySelector('[name="occurrences"]');
     if (recInput) recInput.addEventListener('change', renderRecurrencePreview);
     if (occInput) occInput.addEventListener('input', renderRecurrencePreview);
+    const priceInput = form.querySelector('[name="price"]');
+    const pctInput = form.querySelector('[name="profit_pct"]');
+    if (priceInput) priceInput.addEventListener('input', renderProfitPreview);
+    if (pctInput) pctInput.addEventListener('input', renderProfitPreview);
+  }
+
+  function renderProfitPreview() {
+    const el = document.getElementById('profitPreview');
+    if (!el) return;
+    const price = Number(form.price.value || 0);
+    const pct = Number((form.profit_pct && form.profit_pct.value) || 50);
+    if (!price) { el.innerHTML = ''; return; }
+    const mine = price * (pct / 100);
+    el.innerHTML = `Mi parte: <strong class="text-success">$${mine.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>`;
   }
 
   function addRecurrence(dateStr, kind, i) {
@@ -110,6 +124,7 @@ window.ServiceForm = (() => {
     form.reset();
     form.id.value = '';
     form.service_date.value = date || new Date().toISOString().slice(0, 10);
+    if (form.profit_pct) form.profit_pct.value = 50;
     if (clientId) form.client_id.value = clientId;
     if (category) form.category.value = category;
     if (description != null) form.description.value = description;
@@ -120,6 +135,7 @@ window.ServiceForm = (() => {
     document.getElementById('svcModalTitle').textContent = 'Nuevo servicio';
     renderDaySchedule();
     renderRecurrencePreview();
+    renderProfitPreview();
     renderPhotos(null);
     renderShare(null);
     modal.show();
@@ -135,11 +151,13 @@ window.ServiceForm = (() => {
     if (form.service_time) form.service_time.value = s.service_time || '';
     form.description.value = s.description || '';
     form.price.value = s.price;
+    if (form.profit_pct) form.profit_pct.value = s.profit_pct != null ? s.profit_pct : 50;
     form.paid.checked = !!s.paid;
     if (form.employee_id) form.employee_id.value = s.employee_id || '';
     document.getElementById('svcModalTitle').textContent = 'Editar servicio';
     renderDaySchedule();
     renderRecurrencePreview();
+    renderProfitPreview();
     renderPhotos(s);
     renderShare(s);
     modal.show();
@@ -419,6 +437,11 @@ window.ServiceForm = (() => {
     const data = Object.fromEntries(fd);
     data.paid = fd.get('paid') ? 1 : 0;
     data.price = Number(data.price || 0);
+    if (data.profit_pct !== undefined && data.profit_pct !== '') {
+      data.profit_pct = Math.max(0, Math.min(100, Number(data.profit_pct) || 50));
+    } else {
+      data.profit_pct = 50;
+    }
     if (data.employee_id === '') data.employee_id = null;
     const id = data.id;
     delete data.id;

@@ -99,8 +99,15 @@ router.get('/:id', (req, res) => {
   res.json(row);
 });
 
+function clampPct(v, fallback) {
+  if (v === undefined || v === null || v === '') return fallback;
+  const n = Number(v);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(0, Math.min(100, n));
+}
+
 router.post('/', (req, res) => {
-  const { client_id, category, description, service_date, service_time, price, paid, recurrence, occurrences, employee_id } = req.body;
+  const { client_id, category, description, service_date, service_time, price, paid, recurrence, occurrences, employee_id, profit_pct } = req.body;
   if (!client_id) return res.status(400).json({ error: 'Cliente obligatorio' });
   if (!category) return res.status(400).json({ error: 'Categoría obligatoria' });
   if (!service_date) return res.status(400).json({ error: 'Fecha obligatoria' });
@@ -109,13 +116,14 @@ router.post('/', (req, res) => {
   const paidNum = paid ? 1 : 0;
   const time = sanitizeTime(service_time);
   const empId = employee_id ? Number(employee_id) : null;
+  const pct = clampPct(profit_pct, 50);
 
   const recKind = recurrence && RECURRENCE.hasOwnProperty(recurrence) ? recurrence : null;
   const count = recKind ? Math.max(1, Math.min(52, Number(occurrences) || 1)) : 1;
 
   const insert = db.prepare(`
-    INSERT INTO services (client_id, category, description, service_date, service_time, price, paid, paid_at, employee_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO services (client_id, category, description, service_date, service_time, price, profit_pct, paid, paid_at, employee_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertMany = db.transaction(() => {
@@ -123,7 +131,7 @@ router.post('/', (req, res) => {
     for (let i = 0; i < count; i++) {
       const date = recKind ? addRecurrence(service_date, recKind, i) : service_date;
       const paidAt = paidNum ? new Date().toISOString() : null;
-      const info = insert.run(client_id, category, description || null, date, time, priceNum, paidNum, paidAt, empId);
+      const info = insert.run(client_id, category, description || null, date, time, priceNum, pct, paidNum, paidAt, empId);
       ids.push(info.lastInsertRowid);
     }
     return ids;
@@ -135,7 +143,7 @@ router.post('/', (req, res) => {
 });
 
 router.put('/:id', (req, res) => {
-  const { client_id, category, description, service_date, service_time, price, paid, employee_id } = req.body;
+  const { client_id, category, description, service_date, service_time, price, paid, employee_id, profit_pct } = req.body;
   const current = db.prepare('SELECT * FROM services WHERE id = ?').get(req.params.id);
   if (!current) return res.status(404).json({ error: 'No encontrado' });
   const paidNum = paid ? 1 : 0;
@@ -143,8 +151,9 @@ router.put('/:id', (req, res) => {
   if (paidNum && !current.paid) paidAt = new Date().toISOString();
   if (!paidNum) paidAt = null;
   const empId = employee_id === '' || employee_id === null ? null : (employee_id !== undefined ? Number(employee_id) : current.employee_id);
+  const pct = profit_pct !== undefined ? clampPct(profit_pct, current.profit_pct) : current.profit_pct;
   db.prepare(`
-    UPDATE services SET client_id = ?, category = ?, description = ?, service_date = ?, service_time = ?, price = ?, paid = ?, paid_at = ?, employee_id = ?
+    UPDATE services SET client_id = ?, category = ?, description = ?, service_date = ?, service_time = ?, price = ?, profit_pct = ?, paid = ?, paid_at = ?, employee_id = ?
     WHERE id = ?
   `).run(
     client_id || current.client_id,
@@ -153,6 +162,7 @@ router.put('/:id', (req, res) => {
     service_date || current.service_date,
     service_time !== undefined ? sanitizeTime(service_time) : current.service_time,
     price !== undefined ? Number(price) : current.price,
+    pct,
     paidNum,
     paidAt,
     empId,
