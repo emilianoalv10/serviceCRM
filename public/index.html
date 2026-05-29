@@ -41,6 +41,11 @@
     </div>
 
     <div class="card p-3 mb-4">
+      <h2 class="h6 text-muted mb-3">Resultado del mes <span class="text-secondary small fw-normal" id="month-range"></span></h2>
+      <div id="month-result">Cargando…</div>
+    </div>
+
+    <div class="card p-3 mb-4">
       <h2 class="h6 text-muted mb-3">Comparación semanal</h2>
       <div id="weekly-compare">Cargando…</div>
     </div>
@@ -85,11 +90,48 @@
       document.getElementById('stat-paid').textContent = money(d.totals.total_paid);
       document.getElementById('stat-pending').textContent = money(d.totals.total_pending);
 
+      renderMonthResult(d.month_result);
       renderWeeklyCompare(d.weekly_compare);
       renderByCategory(d.by_category);
       renderByMonth(d.by_month);
       renderTopClients(d.top_clients);
       renderPendingClients(d.pending_clients);
+    }
+
+    function renderMonthResult(m) {
+      const el = document.getElementById('month-result');
+      const rangeEl = document.getElementById('month-range');
+      if (!m) { el.innerHTML = '<p class="text-muted small mb-0">Sin datos.</p>'; return; }
+      rangeEl.textContent = `(${fmtDate(m.from)} → ${fmtDate(m.to)})`;
+      const resultBilled = m.result_billed;
+      const resultPaid = m.result_paid;
+      const colorBilled = resultBilled >= 0 ? 'text-success' : 'text-danger';
+      const colorPaid = resultPaid >= 0 ? 'text-success' : 'text-danger';
+      el.innerHTML = `
+        <div class="row g-3">
+          <div class="col-md-4">
+            <div class="border rounded p-3 h-100">
+              <div class="small text-muted">Ingresos del mes</div>
+              <div class="h4 mb-0 money text-success mt-1">${money(m.income_billed)}</div>
+              <div class="small text-muted mt-1">Ya cobrado: ${money(m.income_paid)}</div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="border rounded p-3 h-100">
+              <div class="small text-muted">Gastos del mes</div>
+              <div class="h4 mb-0 money text-danger mt-1">- ${money(m.costs)}</div>
+              <div class="small text-muted mt-1"><a href="/costs.html">Ver detalle →</a></div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="border rounded p-3 h-100 ${resultBilled >= 0 ? 'border-success' : 'border-danger'}">
+              <div class="small text-muted">Resultado (facturado − gastos)</div>
+              <div class="h4 mb-0 money ${colorBilled} mt-1">${resultBilled >= 0 ? '' : '- '}${money(Math.abs(resultBilled))}</div>
+              <div class="small ${colorPaid} mt-1">En caja real (cobrado − gastos): ${resultPaid >= 0 ? '' : '- '}${money(Math.abs(resultPaid))}</div>
+            </div>
+          </div>
+        </div>
+      `;
     }
 
     function renderWeeklyCompare(w) {

@@ -72,6 +72,7 @@ app.use('/api/clients', require('./routes/clients'));
 app.use('/api/services', require('./routes/services'));
 app.use('/api/quotes', require('./routes/quotes'));
 app.use('/api/employees', require('./routes/employees'));
+app.use('/api/costs', require('./routes/costs'));
 app.use('/api/analytics', require('./routes/analytics'));
 
 app.get('/api/backups', (req, res) => {
@@ -96,7 +97,7 @@ app.get('/api/backups/:filename', (req, res) => {
   res.download(full);
 });
 
-app.get(['/', '/index.html', '/clients.html', '/services.html', '/agenda.html', '/quotes.html', '/employees.html'], requireAuth, (req, res, next) => {
+app.get(['/', '/index.html', '/clients.html', '/services.html', '/agenda.html', '/quotes.html', '/employees.html', '/costs.html'], requireAuth, (req, res, next) => {
   next();
 });
 

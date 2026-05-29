@@ -75,6 +75,16 @@ db.exec(`
     active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS costs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cost_date TEXT NOT NULL,
+    category TEXT NOT NULL,
+    description TEXT,
+    amount REAL NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_costs_date ON costs(cost_date);
 `);
 
 // Migraciones idempotentes para bases ya existentes

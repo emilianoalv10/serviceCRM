@@ -115,6 +115,23 @@ router.get('/summary', (req, res) => {
   const nextWeekEnd = addDays(thisWeekStart, 13);
   const nextWeek = rangeTotals(toISO(nextWeekStart), toISO(nextWeekEnd));
 
+  // Resultado del mes (ingresos - gastos)
+  const startThisMonthStr = toISO(startThisMonth);
+  const endThisMonth = new Date(todayD.getFullYear(), todayD.getMonth() + 1, 0);
+  const endThisMonthStr = toISO(endThisMonth);
+  const incomeThisMonth = db.prepare(`
+    SELECT
+      COALESCE(SUM(price), 0) AS billed,
+      COALESCE(SUM(CASE WHEN paid = 1 THEN price ELSE 0 END), 0) AS paid
+    FROM services
+    WHERE service_date >= ? AND service_date <= ?
+  `).get(startThisMonthStr, endThisMonthStr);
+  const costsThisMonth = db.prepare(`
+    SELECT COALESCE(SUM(amount), 0) AS total
+    FROM costs
+    WHERE cost_date >= ? AND cost_date <= ?
+  `).get(startThisMonthStr, endThisMonthStr).total;
+
   res.json({
     totals: { ...totals, clients_count: clientsCount, pending_from: pendingFrom, pending_to: pendingTo },
     by_category: byCategory,
@@ -133,6 +150,15 @@ router.get('/summary', (req, res) => {
       last_week: { from: toISO(lastWeekStart), to: toISO(lastWeekEnd), ...lastWeek },
       last_week_to_same_dow: { from: toISO(lastWeekStart), to: toISO(lastWeekSameDow), ...lastWeekToSameDow },
       next_week: { from: toISO(nextWeekStart), to: toISO(nextWeekEnd), ...nextWeek }
+    },
+    month_result: {
+      from: startThisMonthStr,
+      to: endThisMonthStr,
+      income_billed: incomeThisMonth.billed,
+      income_paid: incomeThisMonth.paid,
+      costs: costsThisMonth,
+      result_billed: incomeThisMonth.billed - costsThisMonth,
+      result_paid: incomeThisMonth.paid - costsThisMonth
     }
   });
 });
