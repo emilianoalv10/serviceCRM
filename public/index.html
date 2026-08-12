@@ -40,9 +40,19 @@
       </div>
     </div>
 
-    <div class="card p-3 mb-4">
-      <h2 class="h6 text-muted mb-3">Resultado del mes <span class="text-secondary small fw-normal" id="month-range"></span></h2>
-      <div id="month-result">Cargando…</div>
+    <div class="row g-3 mb-4">
+      <div class="col-lg-6">
+        <div class="card p-3 h-100">
+          <h2 class="h6 text-muted mb-3">Mes actual <span class="text-secondary small fw-normal" id="month-range"></span></h2>
+          <div id="month-result">Cargando…</div>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="card p-3 h-100">
+          <h2 class="h6 text-muted mb-3">Mes anterior <span class="text-secondary small fw-normal" id="prev-month-range"></span></h2>
+          <div id="prev-month-result">Cargando…</div>
+        </div>
+      </div>
     </div>
 
     <div class="card p-3 mb-4">
@@ -50,31 +60,14 @@
       <div id="weekly-compare">Cargando…</div>
     </div>
 
-    <div class="row g-3">
-      <div class="col-lg-6">
-        <div class="card p-3">
-          <h2 class="h6 text-muted">Por rubro</h2>
-          <div id="by-category">Cargando…</div>
-        </div>
-      </div>
-      <div class="col-lg-6">
-        <div class="card p-3">
-          <h2 class="h6 text-muted">Últimos 12 meses</h2>
-          <div id="by-month">Cargando…</div>
-        </div>
-      </div>
-      <div class="col-lg-6">
-        <div class="card p-3">
-          <h2 class="h6 text-muted">Top clientes</h2>
-          <div id="top-clients">Cargando…</div>
-        </div>
-      </div>
-      <div class="col-lg-6">
-        <div class="card p-3">
-          <h2 class="h6 text-muted">Clientes con pagos pendientes</h2>
-          <div id="pending-clients">Cargando…</div>
-        </div>
-      </div>
+    <div class="card p-3 mb-4">
+      <h2 class="h6 text-muted mb-3">Resultado por mes <span class="text-secondary small fw-normal">(últimos 12)</span></h2>
+      <div id="by-month">Cargando…</div>
+    </div>
+
+    <div class="card p-3">
+      <h2 class="h6 text-muted mb-3">Por rubro</h2>
+      <div id="by-category">Cargando…</div>
     </div>
   </main>
 
@@ -90,17 +83,16 @@
       document.getElementById('stat-paid').textContent = money(d.totals.total_paid);
       document.getElementById('stat-pending').textContent = money(d.totals.total_pending);
 
-      renderMonthResult(d.month_result);
+      renderMonthResult(d.month_result, 'month-result', 'month-range');
+      renderMonthResult(d.previous_month_result, 'prev-month-result', 'prev-month-range');
       renderWeeklyCompare(d.weekly_compare);
-      renderByCategory(d.by_category);
       renderByMonth(d.by_month);
-      renderTopClients(d.top_clients);
-      renderPendingClients(d.pending_clients);
+      renderByCategory(d.by_category);
     }
 
-    function renderMonthResult(m) {
-      const el = document.getElementById('month-result');
-      const rangeEl = document.getElementById('month-range');
+    function renderMonthResult(m, elId, rangeElId) {
+      const el = document.getElementById(elId);
+      const rangeEl = document.getElementById(rangeElId);
       if (!m) { el.innerHTML = '<p class="text-muted small mb-0">Sin datos.</p>'; return; }
       rangeEl.textContent = `(${fmtDate(m.from)} → ${fmtDate(m.to)})`;
       const resultBilled = m.result_billed;
@@ -108,29 +100,24 @@
       const colorBilled = resultBilled >= 0 ? 'text-success' : 'text-danger';
       const colorPaid = resultPaid >= 0 ? 'text-success' : 'text-danger';
       el.innerHTML = `
-        <div class="row g-3">
-          <div class="col-md-4">
-            <div class="border rounded p-3 h-100">
-              <div class="small text-muted">Mi parte del mes <span class="text-secondary">(precio × mi %)</span></div>
-              <div class="h4 mb-0 money text-success mt-1">${money(m.my_share_billed)}</div>
-              <div class="small text-muted mt-1">Ya cobrado: ${money(m.my_share_paid)}</div>
-              <div class="small text-muted mt-1">Facturación bruta: ${money(m.income_billed)}</div>
-            </div>
+        <div class="d-flex flex-column gap-2">
+          <div class="d-flex justify-content-between border-bottom pb-2">
+            <span class="small text-muted">Facturado bruto</span>
+            <span class="money">${money(m.income_billed)}</span>
           </div>
-          <div class="col-md-4">
-            <div class="border rounded p-3 h-100">
-              <div class="small text-muted">Gastos del mes</div>
-              <div class="h4 mb-0 money text-danger mt-1">- ${money(m.costs)}</div>
-              <div class="small text-muted mt-1"><a href="/costs.html">Ver detalle →</a></div>
-            </div>
+          <div class="d-flex justify-content-between border-bottom pb-2">
+            <span class="small text-muted">Mi parte <span class="text-secondary">(precio × %)</span></span>
+            <span class="money text-success fw-semibold">${money(m.my_share_billed)}</span>
           </div>
-          <div class="col-md-4">
-            <div class="border rounded p-3 h-100 ${resultBilled >= 0 ? 'border-success' : 'border-danger'}">
-              <div class="small text-muted">Ganancia del mes <span class="text-secondary">(mi parte − gastos)</span></div>
-              <div class="h4 mb-0 money ${colorBilled} mt-1">${resultBilled >= 0 ? '' : '- '}${money(Math.abs(resultBilled))}</div>
-              <div class="small ${colorPaid} mt-1">En caja real (cobrado × % − gastos): ${resultPaid >= 0 ? '' : '- '}${money(Math.abs(resultPaid))}</div>
-            </div>
+          <div class="d-flex justify-content-between border-bottom pb-2">
+            <span class="small text-muted">Gastos</span>
+            <span class="money text-danger">- ${money(m.costs)}</span>
           </div>
+          <div class="d-flex justify-content-between align-items-center pt-1">
+            <span class="fw-semibold">Ganancia final</span>
+            <span class="h5 mb-0 money ${colorBilled}">${resultBilled >= 0 ? '' : '- '}${money(Math.abs(resultBilled))}</span>
+          </div>
+          <div class="small text-muted mt-1">En caja real (cobrado × % − gastos): <span class="${colorPaid}">${resultPaid >= 0 ? '' : '- '}${money(Math.abs(resultPaid))}</span></div>
         </div>
       `;
     }
@@ -218,60 +205,38 @@
     function renderByMonth(rows) {
       const el = document.getElementById('by-month');
       if (!rows.length) return el.innerHTML = '<p class="text-muted small mb-0">Sin datos.</p>';
-      const max = Math.max(...rows.map(r => r.total), 1);
+      const sorted = rows.slice().reverse();
       el.innerHTML = `
-        <table class="table table-sm mb-0">
-          <thead><tr><th>Mes</th><th class="text-end">Servicios</th><th class="text-end">Facturado</th><th class="text-end">Cobrado</th><th style="width:25%"></th></tr></thead>
-          <tbody>
-            ${rows.map(r => `
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead>
               <tr>
-                <td>${r.month}</td>
-                <td class="text-end">${r.count}</td>
-                <td class="text-end money">${money(r.total)}</td>
-                <td class="text-end money text-success">${money(r.paid)}</td>
-                <td><div class="bar"><span style="width:${(r.total/max)*100}%"></span></div></td>
+                <th>Mes</th>
+                <th class="text-end">Servicios</th>
+                <th class="text-end">Facturado</th>
+                <th class="text-end">Mi parte</th>
+                <th class="text-end">Gastos</th>
+                <th class="text-end">Ganancia</th>
               </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      `;
-    }
-
-    function renderTopClients(rows) {
-      const el = document.getElementById('top-clients');
-      if (!rows.length) return el.innerHTML = '<p class="text-muted small mb-0">Sin datos.</p>';
-      el.innerHTML = `
-        <table class="table table-sm mb-0">
-          <thead><tr><th>Cliente</th><th class="text-end">Servicios</th><th class="text-end">Total</th></tr></thead>
-          <tbody>
-            ${rows.map(r => `
-              <tr>
-                <td><a href="/clients.html?id=${r.id}">${r.name}</a></td>
-                <td class="text-end">${r.services_count}</td>
-                <td class="text-end money">${money(r.total_billed)}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      `;
-    }
-
-    function renderPendingClients(rows) {
-      const el = document.getElementById('pending-clients');
-      if (!rows.length) return el.innerHTML = '<p class="text-success small mb-0">¡Sin pendientes!</p>';
-      el.innerHTML = `
-        <table class="table table-sm mb-0">
-          <thead><tr><th>Cliente</th><th class="text-end">Pendientes</th><th class="text-end">Deuda</th></tr></thead>
-          <tbody>
-            ${rows.map(r => `
-              <tr>
-                <td><a href="/clients.html?id=${r.id}">${r.name}</a></td>
-                <td class="text-end">${r.pending_count}</td>
-                <td class="text-end money text-danger">${money(r.total_pending)}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              ${sorted.map(r => {
+                const gain = r.result;
+                const gainCls = gain >= 0 ? 'text-success' : 'text-danger';
+                const gainSign = gain >= 0 ? '' : '- ';
+                return `
+                  <tr>
+                    <td>${r.month}</td>
+                    <td class="text-end">${r.count}</td>
+                    <td class="text-end money">${money(r.total)}</td>
+                    <td class="text-end money text-success">${money(r.my_share)}</td>
+                    <td class="text-end money text-danger">${r.costs > 0 ? '- ' + money(r.costs) : money(0)}</td>
+                    <td class="text-end money fw-semibold ${gainCls}">${gainSign}${money(Math.abs(gain))}</td>
+                  </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
       `;
     }
 

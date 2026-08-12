@@ -64,12 +64,25 @@ router.get('/summary', (req, res) => {
     SELECT substr(service_date, 1, 7) AS month,
       COUNT(*) AS count,
       COALESCE(SUM(price), 0) AS total,
-      COALESCE(SUM(CASE WHEN paid = 1 THEN price ELSE 0 END), 0) AS paid
+      COALESCE(SUM(CASE WHEN paid = 1 THEN price ELSE 0 END), 0) AS paid,
+      COALESCE(SUM(price * profit_pct / 100.0), 0) AS my_share
     FROM services
     GROUP BY month
     ORDER BY month DESC
     LIMIT 12
   `).all();
+
+  const costsByMonth = db.prepare(`
+    SELECT substr(cost_date, 1, 7) AS month,
+      COALESCE(SUM(amount), 0) AS costs
+    FROM costs
+    GROUP BY month
+  `).all().reduce((acc, r) => { acc[r.month] = r.costs; return acc; }, {});
+
+  byMonth.forEach(m => {
+    m.costs = costsByMonth[m.month] || 0;
+    m.result = m.my_share - m.costs;
+  });
 
   const topClients = db.prepare(`
     SELECT c.id, c.name,
@@ -116,23 +129,39 @@ router.get('/summary', (req, res) => {
   const nextWeek = rangeTotals(toISO(nextWeekStart), toISO(nextWeekEnd));
 
   // Resultado del mes (ingresos - gastos)
-  const startThisMonthStr = toISO(startThisMonth);
+  function computeMonthResult(from, to) {
+    const income = db.prepare(`
+      SELECT
+        COALESCE(SUM(price), 0) AS billed,
+        COALESCE(SUM(CASE WHEN paid = 1 THEN price ELSE 0 END), 0) AS paid,
+        COALESCE(SUM(price * profit_pct / 100.0), 0) AS my_share_billed,
+        COALESCE(SUM(CASE WHEN paid = 1 THEN price * profit_pct / 100.0 ELSE 0 END), 0) AS my_share_paid
+      FROM services
+      WHERE service_date >= ? AND service_date <= ?
+    `).get(from, to);
+    const costs = db.prepare(`
+      SELECT COALESCE(SUM(amount), 0) AS total
+      FROM costs
+      WHERE cost_date >= ? AND cost_date <= ?
+    `).get(from, to).total;
+    return {
+      from, to,
+      income_billed: income.billed,
+      income_paid: income.paid,
+      my_share_billed: income.my_share_billed,
+      my_share_paid: income.my_share_paid,
+      costs,
+      result_billed: income.my_share_billed - costs,
+      result_paid: income.my_share_paid - costs
+    };
+  }
+
+  const startThisMonth2 = new Date(todayD.getFullYear(), todayD.getMonth(), 1);
   const endThisMonth = new Date(todayD.getFullYear(), todayD.getMonth() + 1, 0);
-  const endThisMonthStr = toISO(endThisMonth);
-  const incomeThisMonth = db.prepare(`
-    SELECT
-      COALESCE(SUM(price), 0) AS billed,
-      COALESCE(SUM(CASE WHEN paid = 1 THEN price ELSE 0 END), 0) AS paid,
-      COALESCE(SUM(price * profit_pct / 100.0), 0) AS my_share_billed,
-      COALESCE(SUM(CASE WHEN paid = 1 THEN price * profit_pct / 100.0 ELSE 0 END), 0) AS my_share_paid
-    FROM services
-    WHERE service_date >= ? AND service_date <= ?
-  `).get(startThisMonthStr, endThisMonthStr);
-  const costsThisMonth = db.prepare(`
-    SELECT COALESCE(SUM(amount), 0) AS total
-    FROM costs
-    WHERE cost_date >= ? AND cost_date <= ?
-  `).get(startThisMonthStr, endThisMonthStr).total;
+  const startPrevMonth = new Date(todayD.getFullYear(), todayD.getMonth() - 1, 1);
+  const endPrevMonth = new Date(todayD.getFullYear(), todayD.getMonth(), 0);
+  const monthResult = computeMonthResult(toISO(startThisMonth2), toISO(endThisMonth));
+  const prevMonthResult = computeMonthResult(toISO(startPrevMonth), toISO(endPrevMonth));
 
   res.json({
     totals: { ...totals, clients_count: clientsCount, pending_from: pendingFrom, pending_to: pendingTo },
@@ -153,17 +182,8 @@ router.get('/summary', (req, res) => {
       last_week_to_same_dow: { from: toISO(lastWeekStart), to: toISO(lastWeekSameDow), ...lastWeekToSameDow },
       next_week: { from: toISO(nextWeekStart), to: toISO(nextWeekEnd), ...nextWeek }
     },
-    month_result: {
-      from: startThisMonthStr,
-      to: endThisMonthStr,
-      income_billed: incomeThisMonth.billed,
-      income_paid: incomeThisMonth.paid,
-      my_share_billed: incomeThisMonth.my_share_billed,
-      my_share_paid: incomeThisMonth.my_share_paid,
-      costs: costsThisMonth,
-      result_billed: incomeThisMonth.my_share_billed - costsThisMonth,
-      result_paid: incomeThisMonth.my_share_paid - costsThisMonth
-    }
+    month_result: monthResult,
+    previous_month_result: prevMonthResult
   });
 });
 
